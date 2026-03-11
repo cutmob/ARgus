@@ -5,37 +5,33 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        display: ["var(--font-figtree)"],
-        sans: ["var(--font-ibm-plex-sans)"],
-        mono: ["var(--font-jetbrains-mono)"],
+        display: ["var(--font-space-grotesk)", "sans-serif"],
+        sans:    ["var(--font-figtree)", "sans-serif"],
+        mono:    ["var(--font-ibm-plex-mono)", "monospace"],
       },
       colors: {
         argus: {
-          bg:       "#080b0f",
-          surface:  "#0d1117",
-          panel:    "#111820",
-          border:   "#1e2d3d",
-          muted:    "#8b9ab0",
-          text:     "#c9d3df",
-          accent:   "#00c2ff",   // cyan — primary interactive
-          amber:    "#f59e0b",   // warnings
-          danger:   "#ef4444",   // high severity
-          critical: "#dc2626",   // critical severity
-          safe:     "#22c55e",   // OK / connected
+          bg:      "#000000",
+          surface: "#080808",
+          panel:   "#0f0f0f",
+          border:  "#1c1c1c",
+          muted:   "#4a4a4a",
+          dim:     "#7a7a7a",
+          text:    "#f0f0f0",
+          orange:  "#FF5F1F",  // primary accent — matches landing
+          danger:  "#ef4444",
+          safe:    "#22c55e",
+          amber:   "#f59e0b",
         },
       },
       keyframes: {
-        "ping-slow": {
-          "75%, 100%": { transform: "scale(1.8)", opacity: "0" },
-        },
-        "scan-line": {
-          "0%":   { transform: "translateY(-100%)" },
-          "100%": { transform: "translateY(100vh)" },
+        "arc-spin": {
+          "0%":   { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(360deg)" },
         },
       },
       animation: {
-        "ping-slow": "ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite",
-        "scan-line": "scan-line 4s linear infinite",
+        "arc-spin": "arc-spin 1s linear infinite",
       },
     },
   },

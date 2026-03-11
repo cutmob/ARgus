@@ -8,14 +8,18 @@ spec:
   template:
     metadata:
       annotations:
-        autoscaling.knative.dev/maxScale: "10"
-        run.googleapis.com/execution-environment: gen2
+        # Keep WebSocket connections on the same instance
         run.googleapis.com/sessionAffinity: "true"
+        # Gen2 execution environment — better networking, lower cold starts
+        run.googleapis.com/execution-environment: gen2
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
     spec:
-      containerConcurrency: 100
+      # Long timeout required for persistent Gemini Live API WebSocket sessions
       timeoutSeconds: 3600
+      containerConcurrency: 80
       containers:
-        - image: gcr.io/PROJECT_ID/argus-backend:latest
+        - image: us-central1-docker.pkg.dev/PROJECT_ID/argus/argus-backend:latest
           ports:
             - containerPort: 8080
           env:
@@ -23,10 +27,11 @@ spec:
               value: "8080"
             - name: ARGUS_MODULES_DIR
               value: "/app/modules"
+            # API key injected from Secret Manager at runtime — never stored in plain text
             - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: gemini-api-key
+                  name: GEMINI_API_KEY
                   key: latest
           resources:
             limits:
@@ -38,3 +43,9 @@ spec:
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            periodSeconds: 30

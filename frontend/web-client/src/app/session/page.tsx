@@ -1,48 +1,75 @@
 "use client";
 
-import { useState } from "react";
-import { CameraView } from "@/components/CameraView";
-import { ControlPanel } from "@/components/ControlPanel";
-import { HazardList } from "@/components/HazardList";
-import { StatusBar } from "@/components/StatusBar";
+import { useState, useCallback } from "react";
 import { useArgusSession } from "@/hooks/useArgusSession";
+import { useCameraContext } from "@/hooks/useCameraContext";
+import { useWakeWord } from "@/hooks/useWakeWord";
+import { speakResponse } from "@/lib/tts";
+import { ContextSelector } from "@/components/ContextSelector";
+import { SmartphoneSession } from "@/components/session-smartphone/SmartphoneSession";
+import { CCTVSession } from "@/components/session-cctv/CCTVSession";
+import { ARSession } from "@/components/session-ar/ARSession";
+import type { CameraContext } from "@/lib/cameraContext";
 
 export default function SessionPage() {
-  const [inspectionMode, setInspectionMode] = useState<string>("general");
+  const [inspectionMode, setInspectionMode] = useState("general");
   const session = useArgusSession();
+  const { context, detecting } = useCameraContext();
+  const [manualContext, setManualContext] = useState<CameraContext | null>(null);
 
-  return (
-    <main className="h-screen w-screen flex flex-col bg-argus-bg overflow-hidden">
-      <StatusBar
-        connected={session.connected}
-        mode={inspectionMode}
-        hazardCount={session.hazards.length}
-        riskLevel={session.riskLevel}
-      />
+  const handleWake = useCallback(() => {
+    if (session.isInspecting) {
+      session.stopInspection();
+      speakResponse("Inspection stopped.");
+    } else {
+      session.startInspection(inspectionMode);
+      speakResponse("On it.");
+    }
+  }, [session, inspectionMode]);
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Camera feed */}
-        <div className="flex-1 relative">
-          <CameraView
-            overlays={session.overlays}
-            onFrame={session.sendFrame}
-          />
-        </div>
+  useWakeWord({ onWake: handleWake, word: "argus" });
 
-        {/* Right panel */}
-        <aside className="w-72 flex flex-col bg-argus-panel border-l border-argus-border overflow-hidden">
-          <ControlPanel
-            mode={inspectionMode}
-            onModeChange={(m) => { setInspectionMode(m); session.switchMode(m); }}
-            onStartInspection={() => session.startInspection(inspectionMode)}
-            onStopInspection={session.stopInspection}
-            onGenerateReport={session.generateReport}
-            isInspecting={session.isInspecting}
-          />
+  const activeContext = manualContext ?? context;
 
-          <HazardList hazards={session.hazards} />
-        </aside>
+  if (detecting) {
+    return (
+      <div className="h-screen w-screen bg-argus-bg flex items-center justify-center">
+        <span className="font-display text-xs font-medium text-argus-muted tracking-[0.35em] uppercase">
+          Detecting environment
+        </span>
       </div>
-    </main>
+    );
+  }
+
+  if (activeContext === "unknown") {
+    return <ContextSelector onSelect={setManualContext} />;
+  }
+
+  const handleModeChange = (m: string) => {
+    setInspectionMode(m);
+    session.switchMode(m);
+  };
+
+  if (activeContext === "smartphone") {
+    return (
+      <SmartphoneSession
+        session={session}
+        mode={inspectionMode}
+        onModeChange={handleModeChange}
+      />
+    );
+  }
+
+  if (activeContext === "ar") {
+    return <ARSession session={session} mode={inspectionMode} />;
+  }
+
+  // Default: CCTV / desktop
+  return (
+    <CCTVSession
+      session={session}
+      mode={inspectionMode}
+      onModeChange={handleModeChange}
+    />
   );
 }

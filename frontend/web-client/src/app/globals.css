@@ -3,88 +3,35 @@
 @tailwind utilities;
 
 :root {
-  --argus-accent:   #00c2ff;
-  --argus-amber:    #f59e0b;
-  --argus-danger:   #ef4444;
-  --argus-critical: #dc2626;
-  --argus-safe:     #22c55e;
+  --orange:  #FF5F1F;
+  --danger:  #ef4444;
+  --safe:    #22c55e;
 }
 
-html,
-body {
-  background-color: #080b0f;
-  color: #c9d3df;
+html, body {
+  background-color: #000000;
+  color: #f0f0f0;
   overflow-x: hidden;
 }
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar        { width: 4px; }
+::-webkit-scrollbar        { width: 2px; }
 ::-webkit-scrollbar-track  { background: transparent; }
-::-webkit-scrollbar-thumb  { background: #1e2d3d; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #2a3f55; }
-* { scrollbar-width: thin; scrollbar-color: #1e2d3d transparent; }
+::-webkit-scrollbar-thumb  { background: #1c1c1c; }
+* { scrollbar-width: thin; scrollbar-color: #1c1c1c transparent; }
 
-/* ── Hazard overlay pulse ── */
-@keyframes hazard-pulse {
-  0%, 100% { opacity: 0.9; }
-  50%       { opacity: 0.4; }
-}
-.hazard-overlay { animation: hazard-pulse 1.5s ease-in-out infinite; }
+/* Feed corner brackets */
+.feed-corner    { position: absolute; width: 12px; height: 12px; pointer-events: none; }
+.feed-corner-tl { top: 8px;    left: 8px;   border-top:    1px solid rgba(255,255,255,0.12); border-left:   1px solid rgba(255,255,255,0.12); }
+.feed-corner-tr { top: 8px;    right: 8px;  border-top:    1px solid rgba(255,255,255,0.12); border-right:  1px solid rgba(255,255,255,0.12); }
+.feed-corner-bl { bottom: 8px; left: 8px;   border-bottom: 1px solid rgba(255,255,255,0.12); border-left:   1px solid rgba(255,255,255,0.12); }
+.feed-corner-br { bottom: 8px; right: 8px;  border-bottom: 1px solid rgba(255,255,255,0.12); border-right:  1px solid rgba(255,255,255,0.12); }
 
-/* ── Connection status glow ── */
-@keyframes status-glow {
-  0%, 100% { box-shadow: 0 0 4px var(--argus-safe); }
-  50%       { box-shadow: 0 0 14px var(--argus-safe); }
+/* ARGUS TTS bars */
+@keyframes tts-bar {
+  0%, 100% { height: 3px;  opacity: 0.6; }
+  50%       { height: 9px;  opacity: 1;   }
 }
-.status-active { animation: status-glow 2s ease-in-out infinite; }
-
-/* ── Accent glow ── */
-@keyframes accent-glow {
-  0%, 100% { box-shadow: 0 0 6px var(--argus-accent); }
-  50%       { box-shadow: 0 0 20px var(--argus-accent); }
-}
-.accent-glow { animation: accent-glow 2.5s ease-in-out infinite; }
-
-/* ── Scan line ── */
-@keyframes scan-line {
-  0%   { top: -4px; }
-  100% { top: 100%; }
-}
-.scan-line {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--argus-accent), transparent);
-  animation: scan-line 6s linear infinite;
-  pointer-events: none;
-  opacity: 0.35;
-}
-
-/* ── Grid overlay for camera ── */
-.camera-grid {
-  background-image:
-    linear-gradient(rgba(0, 194, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 194, 255, 0.04) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-/* ── Corner bracket ── */
-.bracket::before,
-.bracket::after {
-  content: '';
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  border-color: var(--argus-accent);
-  border-style: solid;
-  opacity: 0.6;
-}
-.bracket::before {
-  top: 0; left: 0;
-  border-width: 2px 0 0 2px;
-}
-.bracket::after {
-  bottom: 0; right: 0;
-  border-width: 0 2px 2px 0;
-}
+.tts-bar   { width: 2px; height: 3px; background: var(--orange); border-radius: 1px; }
+.tts-bar-1 { animation: tts-bar 0.7s ease-in-out infinite; }
+.tts-bar-2 { animation: tts-bar 0.7s ease-in-out 0.15s infinite; }
+.tts-bar-3 { animation: tts-bar 0.7s ease-in-out 0.3s infinite; }

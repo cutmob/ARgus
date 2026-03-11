@@ -1,4 +1,4 @@
-.PHONY: build run test clean deps frontend docker
+.PHONY: build run test clean deps frontend docker deploy deploy-cloudbuild logs
 
 # Backend
 build:
@@ -52,7 +52,32 @@ clean:
 	rm -rf frontend/web-client/.next
 	rm -rf frontend/web-client/node_modules
 
-# Add new inspection module
+# ── Cloud Run Deployment ──────────────────────────────────────────────────────
+# Usage: make deploy
+#        make deploy PROJECT=my-gcp-project-id
+#        make deploy PROJECT=my-gcp-project-id REGION=europe-west1
+
+PROJECT ?=
+REGION  ?= us-central1
+
+deploy:
+	@bash scripts/deploy/deploy.sh \
+		$(if $(PROJECT),--project $(PROJECT)) \
+		$(if $(REGION),--region $(REGION))
+
+# Submit a Cloud Build job manually (IaC path — mirrors CI/CD trigger)
+deploy-cloudbuild:
+	gcloud builds submit --config=cloudbuild.yaml \
+		$(if $(PROJECT),--project=$(PROJECT)) \
+		.
+
+# Stream live logs from the deployed Cloud Run service
+logs:
+	gcloud run services logs tail argus-backend \
+		--region=$(REGION) \
+		$(if $(PROJECT),--project=$(PROJECT))
+
+# ── Add new inspection module ─────────────────────────────────────────────────
 # Usage: make new-module NAME=warehouse
 new-module:
 	@mkdir -p modules/$(NAME)

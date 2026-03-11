@@ -1,39 +1,40 @@
 import type { Metadata } from "next";
-import { Figtree, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
+import { Space_Grotesk, Figtree, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
+const spaceGrotesk = Space_Grotesk({
+  weight: ["400", "500", "600", "700"],
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+
 const figtree = Figtree({
+  weight: ["300", "400", "500"],
   subsets: ["latin"],
   variable: "--font-figtree",
   display: "swap",
 });
 
-const ibmPlexSans = IBM_Plex_Sans({
-  weight: ["300", "400", "500", "600"],
+const ibmPlexMono = IBM_Plex_Mono({
+  weight: ["400", "500"],
   subsets: ["latin"],
-  variable: "--font-ibm-plex-sans",
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  variable: "--font-ibm-plex-mono",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "ARGUS - AI Inspection System",
-  description: "Real-time AI-powered safety inspection copilot",
+  title: "ARGUS",
+  description: "Real-time AI-powered safety inspection",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${figtree.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-[#fafafa] text-slate-900 antialiased font-sans">
+    <html
+      lang="en"
+      className={`${spaceGrotesk.variable} ${figtree.variable} ${ibmPlexMono.variable}`}
+    >
+      <body className="bg-argus-bg text-argus-text antialiased font-sans">
         {children}
       </body>
     </html>

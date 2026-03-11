@@ -16,11 +16,10 @@ interface CameraViewProps {
 }
 
 export function CameraView({ overlays, onFrame }: CameraViewProps) {
-  const videoRef   = useRef<HTMLVideoElement>(null);
-  const canvasRef  = useRef<HTMLCanvasElement>(null);
-  const streamRef  = useRef<MediaStream | null>(null);
+  const videoRef  = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  // Initialize camera
   useEffect(() => {
     async function startCamera() {
       try {
@@ -38,28 +37,20 @@ export function CameraView({ overlays, onFrame }: CameraViewProps) {
     return () => { streamRef.current?.getTracks().forEach((t) => t.stop()); };
   }, []);
 
-  // Frame capture loop — 3 s to match backend sampler
   useEffect(() => {
     const interval = setInterval(() => {
       if (!videoRef.current || !canvasRef.current) return;
       const canvas = canvasRef.current;
       const ctx    = canvas.getContext("2d");
       if (!ctx) return;
-
       canvas.width  = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       ctx.drawImage(videoRef.current, 0, 0);
-
-      canvas.toBlob(
-        (blob) => { if (blob) onFrame(blob); },
-        "image/jpeg",
-        0.7
-      );
+      canvas.toBlob((blob) => { if (blob) onFrame(blob); }, "image/jpeg", 0.7);
     }, 3000);
     return () => clearInterval(interval);
   }, [onFrame]);
 
-  // Draw overlays
   const drawOverlays = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -70,21 +61,23 @@ export function CameraView({ overlays, onFrame }: CameraViewProps) {
       if (!overlay.bbox) continue;
       const { x, y, width, height } = overlay.bbox;
 
-      // Box
+      // Thin bounding box at low opacity
       ctx.strokeStyle = overlay.color;
-      ctx.lineWidth   = 2;
+      ctx.lineWidth   = 1;
+      ctx.globalAlpha = 0.4;
       ctx.strokeRect(x, y, width, height);
+      ctx.globalAlpha = 1;
 
       // Corner brackets
-      const cs = 12;
-      ctx.lineWidth = 3;
+      const cs = 8;
+      ctx.lineWidth = 1.5;
       const corners = [
-        [x, y, cs, 0, 0, cs],
-        [x + width, y, -cs, 0, 0, cs],
-        [x, y + height, cs, 0, 0, -cs],
-        [x + width, y + height, -cs, 0, 0, -cs],
+        [x,         y,           cs,  0, 0,   cs],
+        [x + width, y,          -cs,  0, 0,   cs],
+        [x,         y + height,  cs,  0, 0,  -cs],
+        [x + width, y + height, -cs,  0, 0,  -cs],
       ] as const;
-      for (const [cx, cy, dx1, dy1, dx2, dy2] of corners) {
+      for (const [cx, cy, dx1, , , dy2] of corners) {
         ctx.beginPath();
         ctx.moveTo(cx + dx1, cy);
         ctx.lineTo(cx, cy);
@@ -93,24 +86,22 @@ export function CameraView({ overlays, onFrame }: CameraViewProps) {
       }
 
       // Label
-      ctx.font = "bold 11px 'JetBrains Mono', monospace";
-      const labelText  = `${overlay.severity.toUpperCase()} · ${overlay.label}`;
-      const textWidth  = ctx.measureText(labelText).width;
-      const padX       = 8;
-      const padY       = 5;
-      const labelH     = 20;
-      ctx.fillStyle    = overlay.color;
-      ctx.fillRect(x, y - labelH - padY, textWidth + padX * 2, labelH + padY);
-      ctx.fillStyle    = "#000";
-      ctx.fillText(labelText, x + padX, y - padY - 4);
+      ctx.font      = "400 10px 'IBM Plex Mono', monospace";
+      const label   = `${overlay.severity.toUpperCase()} · ${overlay.label}`;
+      const tw      = ctx.measureText(label).width;
+      ctx.fillStyle = overlay.color;
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(x, y - 16, tw + 10, 16);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#000";
+      ctx.fillText(label, x + 5, y - 4);
     }
   }, [overlays]);
 
   useEffect(() => { drawOverlays(); }, [overlays, drawOverlays]);
 
   return (
-    <div className="relative w-full h-full bg-argus-bg overflow-hidden">
-      {/* Live camera */}
+    <div className="relative w-full h-full bg-black overflow-hidden">
       <video
         ref={videoRef}
         autoPlay
@@ -118,36 +109,20 @@ export function CameraView({ overlays, onFrame }: CameraViewProps) {
         muted
         className="w-full h-full object-cover"
       />
-
-      {/* Overlay canvas */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full pointer-events-none"
       />
+      <div className="feed-corner feed-corner-tl" />
+      <div className="feed-corner feed-corner-tr" />
+      <div className="feed-corner feed-corner-bl" />
+      <div className="feed-corner feed-corner-br" />
 
-      {/* Subtle grid */}
-      <div className="absolute inset-0 camera-grid pointer-events-none" />
-
-      {/* Scan line */}
-      <div className="scan-line" />
-
-      {/* Corner HUD brackets */}
-      <div className="absolute top-4 left-4 w-12 h-12 bracket pointer-events-none" />
-      <div className="absolute top-4 right-4 w-12 h-12 pointer-events-none"
-           style={{borderTop: "2px solid rgba(0,194,255,0.4)", borderRight: "2px solid rgba(0,194,255,0.4)"}} />
-      <div className="absolute bottom-4 left-4 w-12 h-12 pointer-events-none"
-           style={{borderBottom: "2px solid rgba(0,194,255,0.4)", borderLeft: "2px solid rgba(0,194,255,0.4)"}} />
-      <div className="absolute bottom-4 right-4 w-12 h-12 pointer-events-none"
-           style={{borderBottom: "2px solid rgba(0,194,255,0.4)", borderRight: "2px solid rgba(0,194,255,0.4)"}} />
-
-      {/* ARGUS watermark */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-argus-bg/60 backdrop-blur-sm px-3 py-1.5 rounded-full border border-argus-border">
-        <div className="relative w-2 h-2">
-          <span className="absolute inset-0 rounded-full bg-argus-accent animate-ping-slow opacity-60" />
-          <span className="relative block w-2 h-2 rounded-full bg-argus-accent accent-glow" />
-        </div>
-        <span className="font-mono text-xs font-bold tracking-[0.25em] text-argus-accent">
-          ARGUS LIVE
+      {/* Static LIVE label — orange dot, matches landing accent */}
+      <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 pointer-events-none">
+        <div className="w-1 h-1 rounded-full" style={{ background: "#FF5F1F" }} />
+        <span className="font-mono text-xs tracking-widest" style={{ color: "rgba(255,255,255,0.2)" }}>
+          LIVE
         </span>
       </div>
     </div>

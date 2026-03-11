@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { speakResponse } from "@/lib/tts";
 
 interface Overlay {
   type: string;
@@ -28,14 +29,16 @@ interface WebSocketMessage {
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
 
 export function useArgusSession() {
-  const [connected, setConnected] = useState(false);
+  const [connected, setConnected]       = useState(false);
   const [isInspecting, setIsInspecting] = useState(false);
-  const [hazards, setHazards] = useState<Hazard[]>([]);
-  const [overlays, setOverlays] = useState<Overlay[]>([]);
-  const [riskLevel, setRiskLevel] = useState<string>("low");
-  const [sessionId, setSessionId] = useState<string>("");
+  const [hazards, setHazards]           = useState<Hazard[]>([]);
+  const [overlays, setOverlays]         = useState<Overlay[]>([]);
+  const [riskLevel, setRiskLevel]       = useState<string>("low");
+  const [sessionId, setSessionId]       = useState<string>("");
+  const [processing, setProcessing]     = useState(false);
+  const [speaking, setSpeaking]         = useState(false);
 
-  const wsRef = useRef<WebSocket | null>(null);
+  const wsRef          = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout>();
 
   const connect = useCallback(() => {
@@ -45,7 +48,7 @@ export function useArgusSession() {
 
     ws.onopen = () => {
       setConnected(true);
-      console.log("[ARGUS] Connected to backend");
+      setProcessing(false);
     };
 
     ws.onmessage = (event) => {
@@ -59,7 +62,6 @@ export function useArgusSession() {
 
     ws.onclose = () => {
       setConnected(false);
-      console.log("[ARGUS] Disconnected, reconnecting...");
       reconnectTimer.current = setTimeout(connect, 3000);
     };
 
@@ -72,6 +74,8 @@ export function useArgusSession() {
   }, []);
 
   const handleMessage = useCallback((msg: WebSocketMessage) => {
+    setProcessing(false);
+
     switch (msg.type) {
       case "session_created":
         setSessionId(msg.session_id);
@@ -97,7 +101,8 @@ export function useArgusSession() {
 
       case "voice_response": {
         const data = msg.payload as { text: string };
-        speakResponse(data.text);
+        setSpeaking(true);
+        speakResponse(data.text, () => setSpeaking(false));
         break;
       }
 
@@ -111,7 +116,6 @@ export function useArgusSession() {
     }
   }, []);
 
-  // Auto-connect on mount
   useEffect(() => {
     connect();
     return () => {
@@ -120,30 +124,21 @@ export function useArgusSession() {
     };
   }, [connect]);
 
-  // Send a video frame to the backend
-  const sendFrame = useCallback(
-    (blob: Blob) => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+  const sendFrame = useCallback((blob: Blob) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    blob.arrayBuffer().then((buffer) => {
+      const typeByte  = new Uint8Array([0x01]);
+      const frameData = new Uint8Array(buffer);
+      const message   = new Uint8Array(typeByte.length + frameData.length);
+      message.set(typeByte, 0);
+      message.set(frameData, 1);
+      wsRef.current?.send(message.buffer);
+    });
+  }, []);
 
-      blob.arrayBuffer().then((buffer) => {
-        // Prepend type byte: 0x01 = video frame
-        const typeByte = new Uint8Array([0x01]);
-        const frameData = new Uint8Array(buffer);
-        const message = new Uint8Array(typeByte.length + frameData.length);
-        message.set(typeByte, 0);
-        message.set(frameData, 1);
-
-        wsRef.current?.send(message.buffer);
-      });
-    },
-    []
-  );
-
-  // Send a text/voice command
   const sendCommand = useCallback(
     (type: string, payload: Record<string, unknown> = {}) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-
       const msg = {
         type,
         session_id: sessionId,
@@ -151,6 +146,7 @@ export function useArgusSession() {
         timestamp: new Date().toISOString(),
       };
       wsRef.current.send(JSON.stringify(msg));
+      setProcessing(true);
     },
     [sessionId]
   );
@@ -171,9 +167,7 @@ export function useArgusSession() {
   }, [sendCommand]);
 
   const switchMode = useCallback(
-    (mode: string) => {
-      sendCommand("switch_mode", { mode });
-    },
+    (mode: string) => { sendCommand("switch_mode", { mode }); },
     [sendCommand]
   );
 
@@ -188,19 +182,12 @@ export function useArgusSession() {
     overlays,
     riskLevel,
     sessionId,
+    processing,
+    speaking,
     sendFrame,
     startInspection,
     stopInspection,
     switchMode,
     generateReport,
   };
-}
-
-// Browser text-to-speech for ARGUS voice responses
-function speakResponse(text: string) {
-  if (!("speechSynthesis" in window)) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1.1;
-  utterance.pitch = 0.9;
-  window.speechSynthesis.speak(utterance);
 }
