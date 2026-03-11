@@ -15,9 +15,11 @@ import type { CameraContext } from "@/lib/cameraContext";
 export default function SessionPage() {
   const [inspectionMode, setInspectionMode] = useState("construction");
   const [overlaysVisible, setOverlaysVisible] = useState(true);
-  const [gated, setGated] = useState(
-    () => typeof window !== "undefined" && !localStorage.getItem("argus_demo_token")
-  );
+  const [gated, setGated] = useState(true);
+
+  useEffect(() => {
+    setGated(!localStorage.getItem("argus_demo_token"));
+  }, []);
   const session = useArgusSession();
   const { context, detecting } = useCameraContext();
   const [manualContext, setManualContext] = useState<CameraContext | null>(null);
@@ -34,6 +36,16 @@ export default function SessionPage() {
 
   useWakeWord({ onWake: handleWake, word: "argus" });
 
+  // Toggle overlays with "O" key (non-AR modes)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement) return;
+      if (e.key === "o") setOverlaysVisible((v) => !v);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   if (gated || session.unauthorized) {
     return (
       <DemoGate
@@ -44,16 +56,6 @@ export default function SessionPage() {
       />
     );
   }
-
-  // Toggle overlays with "O" key (non-AR modes)
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement) return;
-      if (e.key === "o") setOverlaysVisible((v) => !v);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   const activeContext = manualContext ?? context;
 
