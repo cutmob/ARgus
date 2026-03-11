@@ -3,84 +3,140 @@
     "rule_id": "dc_001",
     "description": "Cables routed across raised floor walkways or aisle paths creating trip hazards",
     "severity": "high",
-    "visual_signals": ["cable draped across aisle floor", "patch cord running between racks over walkway", "bundle crossing walking path without protection"],
-    "category": "physical_safety"
+    "visual_signals": ["patch cord draped across aisle floor", "cable bundle crossing walking path without protection", "loose cable on floor between rack rows"],
+    "category": "cabling"
   },
   {
     "rule_id": "dc_002",
-    "description": "Tangled or disorganized cable management restricting airflow through racks or cable trays",
-    "severity": "medium",
-    "visual_signals": ["dense cable spaghetti behind rack", "cables blocking rack ventilation holes", "overfilled cable tray"],
-    "category": "cable_management"
+    "description": "Unlabeled patch panel cables making circuit identification impossible and slowing incident response",
+    "severity": "low",
+    "visual_signals": ["patch cables without labels at panel termination", "missing cable tags on patch panel ports", "unmarked cables plugged into switch ports"],
+    "category": "cabling"
   },
   {
     "rule_id": "dc_003",
-    "description": "Raised floor tile displaced, cracked, or not properly seated in grid allowing air bypass",
-    "severity": "high",
-    "visual_signals": ["floor tile shifted out of grid", "visible crack across tile surface", "tile corner lifted or rocking"],
-    "category": "raised_floor"
+    "description": "Cable bundles blocking rack airflow by obstructing front intake or rear exhaust paths",
+    "severity": "medium",
+    "visual_signals": ["dense cable mass blocking rear exhaust of rack", "cables covering front intake ventilation slots", "cable spaghetti filling vertical cable management channel"],
+    "category": "cabling"
   },
   {
     "rule_id": "dc_004",
-    "description": "Visible dust accumulation on server air intake vents reducing cooling efficiency",
+    "description": "Cables exceeding minimum bend radius causing signal degradation or jacket damage",
     "severity": "medium",
-    "visual_signals": ["gray dust layer on front bezels", "clogged mesh filter on intake", "dust bunnies near rack base"],
-    "category": "environmental"
+    "visual_signals": ["fiber patch cord kinked at sharp angle", "cable bent tightly around rack post", "cable sharply folded where it enters conduit or tray"],
+    "category": "cabling"
   },
   {
     "rule_id": "dc_005",
-    "description": "Water pooling, dripping, or condensation detected near electrical equipment or under raised floor",
-    "severity": "critical",
-    "visual_signals": ["water puddle on floor", "drip stain on ceiling tile above rack", "condensation on cold pipe near servers"],
-    "category": "environmental"
+    "description": "Missing raised floor tiles creating fall hazard and disrupting underfloor airflow pressurization",
+    "severity": "high",
+    "visual_signals": ["open gap in raised floor grid where tile is absent", "exposed underfloor cavity with visible cabling below", "floor tile removed and not replaced with blank"],
+    "category": "cooling"
   },
   {
     "rule_id": "dc_006",
-    "description": "UPS battery showing signs of swelling, leaking electrolyte, or corrosion on terminals",
-    "severity": "critical",
-    "visual_signals": ["bulging battery case", "white crystalline corrosion on terminals", "wet residue around battery base"],
-    "category": "power_systems"
+    "description": "Missing blanking panels in rack U-spaces allowing hot exhaust air to recirculate to intake",
+    "severity": "medium",
+    "visual_signals": ["open U-space gap in rack front without blanking panel", "multiple empty rack positions without filler panels", "visible gap between equipment in rack face"],
+    "category": "cooling"
   },
   {
     "rule_id": "dc_007",
-    "description": "Fire suppression panel displaying fault, alarm, or trouble indicator",
-    "severity": "critical",
-    "visual_signals": ["amber or red fault LED on panel", "trouble message on suppression display", "suppression system in bypass mode"],
-    "category": "fire_safety"
+    "description": "Hot aisle or cold aisle containment breach allowing mixing of supply and return air",
+    "severity": "high",
+    "visual_signals": ["containment curtain detached or hanging loose", "gap between rack tops and ceiling containment", "containment door propped open or missing"],
+    "category": "cooling"
   },
   {
     "rule_id": "dc_008",
-    "description": "Combustible materials such as cardboard boxes or packing materials stored inside data hall",
+    "description": "CRAC or CRAH unit air intake blocked by equipment, boxes, or obstructions reducing cooling capacity",
     "severity": "high",
-    "visual_signals": ["cardboard boxes on floor near racks", "packing foam or paper in server room", "wooden pallets inside data hall"],
-    "category": "fire_safety"
+    "visual_signals": ["items stacked in front of CRAC return air grille", "equipment positioned directly against cooling unit intake", "cardboard or pallets blocking CRAC airflow path"],
+    "category": "cooling"
   },
   {
     "rule_id": "dc_009",
-    "description": "Hot aisle or cold aisle containment compromised by missing blanking panels or open rack positions",
-    "severity": "medium",
-    "visual_signals": ["open U-space in rack without blanking panel", "curtain detached from containment frame", "gap between rack tops and ceiling"],
-    "category": "thermal_management"
+    "description": "Temperature display panel showing reading outside acceptable operating range",
+    "severity": "critical",
+    "visual_signals": ["environmental monitor displaying high temperature alarm", "temperature readout showing value above threshold", "red or amber indicator on room temperature display"],
+    "category": "cooling"
   },
   {
     "rule_id": "dc_010",
-    "description": "Server or network equipment displaying amber or red fault LEDs indicating hardware failure",
-    "severity": "high",
-    "visual_signals": ["amber LED lit on drive bay", "red fault indicator on power supply", "blinking error light on switch module"],
-    "category": "equipment_status"
+    "description": "Fire extinguisher missing from designated location in data hall or electrical room",
+    "severity": "critical",
+    "visual_signals": ["empty fire extinguisher bracket or cabinet", "missing extinguisher from wall-mounted station", "extinguisher sign present but no unit on hook"],
+    "category": "fire"
   },
   {
     "rule_id": "dc_011",
-    "description": "Cable runs sagging between racks or from overhead trays due to insufficient support",
-    "severity": "low",
-    "visual_signals": ["cable bundle drooping between ladder rungs", "weight pulling tray downward", "unsupported span longer than support interval"],
-    "category": "cable_management"
+    "description": "Fire suppression system pressure gauge showing fault or out-of-range reading",
+    "severity": "critical",
+    "visual_signals": ["suppression system gauge needle in red zone", "clean agent cylinder pressure below green band", "fault indicator on suppression control panel"],
+    "category": "fire"
   },
   {
     "rule_id": "dc_012",
-    "description": "Emergency Power Off button obstructed, unlabeled, or missing protective cover",
+    "description": "Smoke detector displaying fault light or visibly damaged sensing element",
     "severity": "critical",
-    "visual_signals": ["EPO button blocked by equipment", "no label on red mushroom button", "missing flip cover on EPO switch"],
-    "category": "emergency_systems"
+    "visual_signals": ["amber or red fault LED on smoke detector", "smoke detector housing cracked or hanging open", "detector with blinking trouble indicator"],
+    "category": "fire"
+  },
+  {
+    "rule_id": "dc_013",
+    "description": "UPS system displaying warning or alarm indicator suggesting battery or input power issue",
+    "severity": "critical",
+    "visual_signals": ["amber warning LED on UPS front panel", "UPS display showing alarm message", "red fault indicator lit on UPS module"],
+    "category": "power"
+  },
+  {
+    "rule_id": "dc_014",
+    "description": "PDU circuit breaker in tripped position cutting power to connected equipment",
+    "severity": "high",
+    "visual_signals": ["breaker handle in middle or off position on PDU", "tripped breaker flag visible on power strip", "PDU outlet indicator showing no power"],
+    "category": "power"
+  },
+  {
+    "rule_id": "dc_015",
+    "description": "Battery corrosion or swelling visible on UPS battery modules indicating failure or thermal risk",
+    "severity": "critical",
+    "visual_signals": ["white crystalline corrosion on battery terminals", "bulging or deformed battery case", "electrolyte residue or wet stain around battery base"],
+    "category": "power"
+  },
+  {
+    "rule_id": "dc_016",
+    "description": "Damaged power cable insulation exposing conductors creating electrical and fire hazard",
+    "severity": "critical",
+    "visual_signals": ["frayed or cut power cord insulation", "exposed copper conductors on power cable", "melted or heat-damaged power cable jacket"],
+    "category": "power"
+  },
+  {
+    "rule_id": "dc_017",
+    "description": "Cardboard boxes or combustible packing materials stored inside the data hall",
+    "severity": "high",
+    "visual_signals": ["cardboard boxes on floor near server racks", "packing foam or paper materials in server room", "wooden pallets or crates inside data hall"],
+    "category": "housekeeping"
+  },
+  {
+    "rule_id": "dc_018",
+    "description": "Server cabinet doors left open compromising airflow containment and physical security",
+    "severity": "medium",
+    "visual_signals": ["rack front door standing open", "rear cabinet door ajar exposing cabling", "side panel removed from enclosed rack"],
+    "category": "security"
+  },
+  {
+    "rule_id": "dc_019",
+    "description": "Items stored on top of server racks creating seismic risk and obstructing overhead systems",
+    "severity": "medium",
+    "visual_signals": ["boxes or equipment placed on rack top", "tools or parts sitting on top of cabinet", "items stacked above rack height"],
+    "category": "housekeeping"
+  },
+  {
+    "rule_id": "dc_020",
+    "description": "Exit signage not illuminated or emergency lighting non-functional in data hall",
+    "severity": "high",
+    "visual_signals": ["dark or unlit exit sign above door", "exit sign with burned-out lamp", "emergency light heads not illuminated during test"],
+    "category": "security"
   }
 ]

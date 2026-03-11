@@ -1,86 +1,170 @@
 [
   {
     "rule_id": "ref_001",
-    "description": "No visible hydrocarbon leaks — drips, pooling, or sheen on surfaces",
+    "description": "Liquid pooling beneath pipe flanges, valves, or fittings indicating active leak",
     "severity": "critical",
-    "visual_signals": ["leak", "drip", "pool", "sheen", "stain"],
+    "visual_signals": ["liquid puddle beneath flange connection", "dripping from valve body or packing gland", "wet spot forming under pipe fitting"],
     "category": "leak_detection"
   },
   {
     "rule_id": "ref_002",
-    "description": "Piping, flanges, and vessels must be free of visible corrosion",
+    "description": "Staining or discoloration from weeping leak on pipe exterior or equipment surface",
     "severity": "high",
-    "visual_signals": ["pipe", "flange", "corrosion", "rust", "pitting"],
-    "category": "integrity"
+    "visual_signals": ["dark streak running down from flange bolt", "discolored trail below valve stem", "dried residue pattern indicating slow seepage"],
+    "category": "leak_detection"
   },
   {
     "rule_id": "ref_003",
-    "description": "Hazardous area classification signage must be present and legible",
-    "severity": "high",
-    "visual_signals": ["sign", "zone", "classified", "class_1", "division"],
-    "category": "signage"
+    "description": "Hydrocarbon sheen visible on water surfaces in drainage ditches, sumps, or containment areas",
+    "severity": "critical",
+    "visual_signals": ["rainbow oil sheen on standing water", "iridescent film on drainage ditch surface", "oily discoloration on water in sump or catch basin"],
+    "category": "leak_detection"
   },
   {
     "rule_id": "ref_004",
-    "description": "Personnel must wear FR clothing, hard hats, and H2S monitors in process areas",
-    "severity": "high",
-    "visual_signals": ["person", "fr_clothing", "hard_hat", "monitor", "detector"],
-    "category": "ppe"
+    "description": "Visible steam or vapor release from unintended source such as leaking gasket, cracked weld, or open vent",
+    "severity": "critical",
+    "visual_signals": ["steam plume from pipe joint or flange", "vapor cloud at unexpected location", "wispy emission from equipment casing or weld seam"],
+    "category": "leak_detection"
   },
   {
     "rule_id": "ref_005",
-    "description": "Emergency showers and eyewash stations must be accessible and unblocked",
+    "description": "External pipe corrosion with visible rust, pitting, or wall thinning on uninsulated piping",
     "severity": "high",
-    "visual_signals": ["shower", "eyewash", "blocked", "obstructed"],
-    "category": "emergency"
+    "visual_signals": ["orange-brown rust patches on pipe exterior", "pitting visible on bare pipe surface", "flaking corroded metal on pipe run"],
+    "category": "corrosion"
   },
   {
     "rule_id": "ref_006",
-    "description": "Scaffolding must have guardrails, toe boards, and be undamaged",
+    "description": "Corrosion under insulation (CUI) indicators — damaged insulation jacketing with rust weeping or staining at seams",
     "severity": "critical",
-    "visual_signals": ["scaffold", "guardrail", "toe_board", "damaged"],
-    "category": "fall_protection"
+    "visual_signals": ["rust-colored staining bleeding through insulation jacket", "damaged or torn aluminum cladding with rust visible beneath", "brown weeping at insulation jacket seams or termination points"],
+    "category": "corrosion"
   },
   {
     "rule_id": "ref_007",
-    "description": "No uncontrolled ignition sources in classified hazardous areas",
-    "severity": "critical",
-    "visual_signals": ["ignition", "non_ex", "equipment", "sparks"],
-    "category": "fire_safety"
+    "description": "Missing insulation cladding sections exposing pipe insulation material to weather and moisture ingress",
+    "severity": "high",
+    "visual_signals": ["bare insulation material visible where jacketing is absent", "section of pipe with metal cladding torn away", "gap in insulation covering exposing mineral wool or calcium silicate"],
+    "category": "corrosion"
   },
   {
     "rule_id": "ref_008",
-    "description": "Open hatches and platform openings must be guarded or barricaded",
-    "severity": "critical",
-    "visual_signals": ["hatch", "opening", "platform", "unguarded"],
-    "category": "fall_protection"
+    "description": "Structural steel corrosion on pipe supports, platforms, or building frames compromising load capacity",
+    "severity": "high",
+    "visual_signals": ["heavy rust on structural I-beam or column", "corrosion flaking on pipe support bracket", "section loss visible on steel grating support members"],
+    "category": "corrosion"
   },
   {
     "rule_id": "ref_009",
-    "description": "Fire and gas detection heads must be present and undamaged",
-    "severity": "high",
-    "visual_signals": ["detector", "flame", "gas", "missing", "damaged"],
-    "category": "detection"
+    "description": "Vessel or tank showing visible deformation such as bulging, denting, or shell distortion",
+    "severity": "critical",
+    "visual_signals": ["bulge or outward deformation on vessel shell", "dent or impact damage on tank wall", "visible waviness or distortion on pressure vessel surface"],
+    "category": "corrosion"
   },
   {
     "rule_id": "ref_010",
-    "description": "Flammable material storage must be within containment with grounding",
-    "severity": "high",
-    "visual_signals": ["drum", "container", "containment", "grounding", "flammable"],
-    "category": "storage"
+    "description": "Scaffolding missing toe boards or guardrails creating fall and dropped-object hazards",
+    "severity": "critical",
+    "visual_signals": ["scaffold platform edge without toe board", "missing mid-rail or top-rail on scaffold level", "open side of scaffold without guardrail system"],
+    "category": "scaffolding"
   },
   {
     "rule_id": "ref_011",
-    "description": "Wind socks for H2S direction indication must be visible",
-    "severity": "medium",
-    "visual_signals": ["windsock", "wind", "direction", "indicator"],
-    "category": "emergency"
+    "description": "Scaffolding erected without current inspection tag or color-coded tag indicating it has not been certified for use",
+    "severity": "high",
+    "visual_signals": ["scaffold with no inspection tag visible", "red or out-of-date tag on scaffold access point", "scaffold missing color-coded competent person tag"],
+    "category": "scaffolding"
   },
   {
     "rule_id": "ref_012",
-    "description": "Temporary hoses and bypasses must not be left in place unattended",
+    "description": "Damaged or missing platform grating on walkways, mezzanines, or elevated structures",
+    "severity": "critical",
+    "visual_signals": ["section of grating missing from walkway", "bent or broken grating panel on platform", "hole in floor grating creating fall-through hazard"],
+    "category": "scaffolding"
+  },
+  {
+    "rule_id": "ref_013",
+    "description": "Fixed ladder missing handrails, safety cage, or climb-assist system where required",
+    "severity": "high",
+    "visual_signals": ["vertical ladder without side rails extending above landing", "fixed ladder missing safety cage above 24 feet", "ladder rungs without grab bars at top platform"],
+    "category": "scaffolding"
+  },
+  {
+    "rule_id": "ref_014",
+    "description": "Worker in process area without hard hat",
+    "severity": "high",
+    "visual_signals": ["person walking in plant area with uncovered head", "worker near overhead piping without hard hat", "individual in process unit not wearing head protection"],
+    "category": "ppe"
+  },
+  {
+    "rule_id": "ref_015",
+    "description": "Worker in process area without safety glasses or required eye protection",
+    "severity": "high",
+    "visual_signals": ["person in plant area without safety glasses", "worker near chemical handling without eye protection", "individual in process zone with no visible eyewear"],
+    "category": "ppe"
+  },
+  {
+    "rule_id": "ref_016",
+    "description": "Worker in process area without flame-resistant (FR) coveralls or clothing",
+    "severity": "high",
+    "visual_signals": ["person wearing non-FR street clothes in process area", "worker in t-shirt or synthetic fabric near hydrocarbons", "individual without FR coveralls in operating unit"],
+    "category": "ppe"
+  },
+  {
+    "rule_id": "ref_017",
+    "description": "Worker at height without fall protection harness and tie-off where required above 6 feet",
+    "severity": "critical",
+    "visual_signals": ["person on elevated platform without visible harness", "worker climbing structure with no lanyard attached", "individual at height with harness unbuckled or lanyard not connected"],
+    "category": "ppe"
+  },
+  {
+    "rule_id": "ref_018",
+    "description": "Fire extinguisher missing from designated location in process area",
+    "severity": "critical",
+    "visual_signals": ["empty fire extinguisher cabinet or bracket", "extinguisher sign present but no unit mounted", "fire extinguisher station with missing unit"],
+    "category": "emergency"
+  },
+  {
+    "rule_id": "ref_019",
+    "description": "Emergency shower or eyewash station access obstructed by equipment, materials, or vegetation",
+    "severity": "high",
+    "visual_signals": ["items stacked in front of emergency shower", "equipment blocking path to eyewash station", "vegetation overgrowth around safety shower access area"],
+    "category": "emergency"
+  },
+  {
+    "rule_id": "ref_020",
+    "description": "Wind sock missing, torn, or non-functional preventing wind direction assessment for toxic release response",
     "severity": "medium",
-    "visual_signals": ["hose", "bypass", "temporary", "unattended"],
-    "category": "maintenance"
+    "visual_signals": ["empty wind sock pole with no sock attached", "shredded or torn wind sock fabric", "wind sock hanging limp and tangled indicating damage"],
+    "category": "emergency"
+  },
+  {
+    "rule_id": "ref_021",
+    "description": "Safety signage missing, illegible, or damaged at hazardous area classification boundaries or process equipment",
+    "severity": "medium",
+    "visual_signals": ["faded or unreadable hazard sign", "sign post with no sign attached", "damaged classification placard at area boundary"],
+    "category": "signage"
+  },
+  {
+    "rule_id": "ref_022",
+    "description": "Secondary containment structure showing cracks, deterioration, or compromised integrity",
+    "severity": "high",
+    "visual_signals": ["visible crack in concrete containment wall or berm", "spalling concrete in secondary containment dike", "gap or hole in containment liner"],
+    "category": "containment"
+  },
+  {
+    "rule_id": "ref_023",
+    "description": "Secondary containment drain valve found in open position allowing uncontrolled release of accumulated liquids",
+    "severity": "critical",
+    "visual_signals": ["drain valve handle in open position on containment wall", "liquid draining from containment through open valve", "unlocked and open valve at base of dike or berm"],
+    "category": "containment"
+  },
+  {
+    "rule_id": "ref_024",
+    "description": "Oily rags, debris, or combustible waste materials left on walkways or near process equipment",
+    "severity": "medium",
+    "visual_signals": ["oily rags on grating or walkway surface", "debris and waste scattered on platform", "combustible materials left near hot equipment or ignition sources"],
+    "category": "housekeeping"
   }
 ]

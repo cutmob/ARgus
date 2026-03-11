@@ -1,86 +1,184 @@
 [
   {
     "rule_id": "hc_001",
-    "description": "Fire-rated door propped open with wedge or device, defeating smoke compartment integrity",
+    "description": "Fire or smoke door propped open with a non-magnetic hold-open device such as a wedge, chair, or trash can, defeating smoke compartment integrity",
     "severity": "critical",
-    "visual_signals": ["door wedge visible", "fire door held open at an angle", "self-closing device bypassed"],
-    "category": "fire_safety"
+    "visual_signals": ["door wedge under fire door", "chair holding fire door open", "trash can used as door stop", "self-closing device bypassed with strap or hook"],
+    "category": "fire_doors"
   },
   {
     "rule_id": "hc_002",
-    "description": "Corridor width reduced below 8 feet by stored equipment or furniture",
+    "description": "Fire-rated door with gap between door and frame exceeding allowable clearance limits, compromising smoke and fire containment",
     "severity": "high",
-    "visual_signals": ["equipment lining hallway walls", "narrowed walking path", "beds or carts parked along corridor"],
-    "category": "egress"
+    "visual_signals": ["visible light through fire door edge gap", "daylight showing between door and frame", "warped fire door not seating against frame", "smoke seal missing from door edge"],
+    "category": "fire_doors"
   },
   {
     "rule_id": "hc_003",
-    "description": "Ceiling tiles displaced, missing, or showing water stains indicating breach above firewall",
+    "description": "Fire-rated door assembly missing its required fire rating label on the door leaf or frame",
     "severity": "high",
-    "visual_signals": ["gap in ceiling grid", "brown water stain on tile", "tile sagging or pushed up"],
-    "category": "building_integrity"
+    "visual_signals": ["no metal label on door hinge edge", "painted-over label on fire door", "missing frame label near top hinge", "label location shows removed adhesive residue"],
+    "category": "fire_doors"
   },
   {
     "rule_id": "hc_004",
-    "description": "Sharps disposal container filled beyond the designated fill line",
+    "description": "Corridor clear width reduced below required minimum by parked equipment, beds, carts, or other obstructions",
     "severity": "high",
-    "visual_signals": ["needles visible above fill mark", "container lid not closing fully", "overstuffed red container"],
-    "category": "infection_control"
+    "visual_signals": ["hospital bed parked against corridor wall", "equipment lining both sides of hallway", "IV poles and carts narrowing passage", "wheelchair blocking corridor width"],
+    "category": "corridors"
   },
   {
     "rule_id": "hc_005",
-    "description": "Oxygen cylinders stored upright without being chained or secured to a wall or rack",
-    "severity": "critical",
-    "visual_signals": ["free-standing gas cylinder", "cylinder leaning against wall unsecured", "missing chain or bracket"],
-    "category": "medical_gas_safety"
+    "description": "Items stored in corridors including boxes, supplies, or linen carts constituting combustible fuel load in egress path",
+    "severity": "medium",
+    "visual_signals": ["cardboard boxes stacked in hallway", "linen cart left in corridor", "supply bins stored against corridor wall", "paper products outside storage room in hallway"],
+    "category": "corridors"
   },
   {
     "rule_id": "hc_006",
-    "description": "Extension cord used as permanent wiring in a patient care area",
+    "description": "Ceiling tiles missing, displaced, broken, or showing water stains indicating breach of smoke-tight barrier above corridor",
     "severity": "high",
-    "visual_signals": ["multi-outlet strip on floor", "extension cord running under equipment", "daisy-chained power strips"],
-    "category": "electrical_safety"
+    "visual_signals": ["gap in ceiling grid exposing plenum", "brown water stain on ceiling tile", "tile sagging or pushed up out of grid", "crumbled or broken ceiling tile"],
+    "category": "corridors"
   },
   {
     "rule_id": "hc_007",
-    "description": "Fire alarm pull station obstructed by furniture, equipment, or signage",
-    "severity": "critical",
-    "visual_signals": ["object placed in front of red pull station", "pull station not visible from corridor", "furniture blocking wall-mounted alarm"],
-    "category": "fire_safety"
+    "description": "Exit sign not illuminated, partially lit, or missing from its required location above an egress door or at a corridor junction",
+    "severity": "high",
+    "visual_signals": ["dark exit sign above door", "exit sign with unlit letters", "missing sign above egress doorway", "flickering exit sign"],
+    "category": "egress"
   },
   {
     "rule_id": "hc_008",
-    "description": "Combustible materials such as boxes or linen stored in corridors",
-    "severity": "medium",
-    "visual_signals": ["cardboard boxes stacked in hallway", "linen carts left in corridor", "paper products outside storage room"],
-    "category": "fire_safety"
+    "description": "Emergency lighting unit visibly damaged, battery pack missing, or lamp head broken preventing activation during power failure",
+    "severity": "high",
+    "visual_signals": ["cracked emergency light lens", "empty emergency light housing on wall", "broken lamp head on battery unit", "emergency light fixture hanging from wires"],
+    "category": "egress"
   },
   {
     "rule_id": "hc_009",
-    "description": "Smoke detector visibly damaged, painted over, or covered",
-    "severity": "critical",
-    "visual_signals": ["detector housing cracked", "paint or tape on detector", "plastic bag over smoke detector"],
+    "description": "Fire extinguisher missing from its designated cabinet or bracket, or access to extinguisher obstructed by equipment or storage",
+    "severity": "high",
+    "visual_signals": ["empty fire extinguisher bracket", "equipment blocking extinguisher cabinet", "no extinguisher visible where sign indicates", "cart parked in front of extinguisher"],
     "category": "fire_safety"
   },
   {
     "rule_id": "hc_010",
-    "description": "Biohazard waste bag or container left outside designated storage area",
-    "severity": "high",
-    "visual_signals": ["red biohazard bag on floor", "waste container in public area", "unlabeled infectious waste"],
-    "category": "infection_control"
+    "description": "Fire alarm pull station blocked, obstructed, or not accessible within the required unobstructed path",
+    "severity": "critical",
+    "visual_signals": ["furniture placed in front of pull station", "equipment blocking red pull handle", "pull station hidden behind posted notices", "cart parked against wall-mounted pull station"],
+    "category": "fire_safety"
   },
   {
     "rule_id": "hc_011",
-    "description": "Medical gas valve box obstructed or not clearly labeled",
-    "severity": "medium",
-    "visual_signals": ["equipment blocking wall valve box", "missing label on gas shutoff", "valve box cover removed"],
-    "category": "medical_gas_safety"
+    "description": "Items hung from, attached to, or resting on sprinkler piping, placing unauthorized load on the fire suppression system",
+    "severity": "high",
+    "visual_signals": ["IV bag hung from sprinkler pipe", "coat hanger on sprinkler branch line", "holiday decorations draped on sprinkler piping", "sign wired to sprinkler pipe"],
+    "category": "fire_safety"
   },
   {
     "rule_id": "hc_012",
-    "description": "Exit sign not illuminated or missing from required location above egress door",
+    "description": "Sprinkler head obstructed by stored items, shelving, or equipment within the required 18-inch clearance below the deflector",
+    "severity": "critical",
+    "visual_signals": ["boxes stacked within 18 inches of sprinkler head", "shelf positioned directly below sprinkler", "equipment top surface near sprinkler deflector", "items stored high on shelving near ceiling sprinkler"],
+    "category": "fire_safety"
+  },
+  {
+    "rule_id": "hc_013",
+    "description": "Sharps disposal container filled beyond the designated fill line, creating needlestick injury risk during disposal",
     "severity": "high",
-    "visual_signals": ["dark exit sign", "missing sign above doorway", "flickering exit sign letters"],
-    "category": "egress"
+    "visual_signals": ["needles visible above fill line mark", "sharps container lid not closing fully", "overstuffed red sharps container", "sharps protruding from container opening"],
+    "category": "patient_rooms"
+  },
+  {
+    "rule_id": "hc_014",
+    "description": "Oxygen cylinders stored without being secured to a wall bracket, chain, rack, or cart, creating a projectile hazard",
+    "severity": "critical",
+    "visual_signals": ["free-standing oxygen cylinder against wall", "unsecured cylinder leaning in corner", "cylinder without chain or bracket visible", "multiple cylinders grouped without rack"],
+    "category": "patient_rooms"
+  },
+  {
+    "rule_id": "hc_015",
+    "description": "Extension cords or relocatable power taps used as substitute for permanent wiring in patient care areas",
+    "severity": "high",
+    "visual_signals": ["extension cord running across floor to equipment", "power strip plugged into another power strip", "multi-outlet adapter on wall receptacle", "extension cord taped to wall or baseboard"],
+    "category": "patient_rooms"
+  },
+  {
+    "rule_id": "hc_016",
+    "description": "Electrical outlet cover plate missing, cracked, or damaged, exposing energized components in patient-accessible area",
+    "severity": "high",
+    "visual_signals": ["missing outlet cover showing wiring", "cracked face plate on receptacle", "outlet plate hanging by one screw", "broken switch plate in patient room"],
+    "category": "patient_rooms"
+  },
+  {
+    "rule_id": "hc_017",
+    "description": "Patient bathroom grab bars missing, loose, or pulled away from wall where required for fall prevention",
+    "severity": "high",
+    "visual_signals": ["empty screw holes where grab bar was mounted", "grab bar wobbling at bracket", "grab bar detached from wall at one end", "no grab bar beside toilet in patient bathroom"],
+    "category": "patient_rooms"
+  },
+  {
+    "rule_id": "hc_018",
+    "description": "Biohazard waste container without proper lid closure or missing required biohazard labeling",
+    "severity": "high",
+    "visual_signals": ["open-top biohazard waste bin", "red bag container missing biohazard symbol", "biohazard container lid propped open", "unlabeled waste receptacle with red liner"],
+    "category": "patient_rooms"
+  },
+  {
+    "rule_id": "hc_019",
+    "description": "Stained, damaged, or non-cleanable ceiling tiles in operating rooms or procedural areas compromising aseptic environment",
+    "severity": "high",
+    "visual_signals": ["water stain on OR ceiling tile", "crumbling ceiling tile in procedure room", "mold discoloration on ceiling in surgical suite", "non-monolithic ceiling with gaps in OR"],
+    "category": "or_areas"
+  },
+  {
+    "rule_id": "hc_020",
+    "description": "Alcohol-based hand rub dispenser installed directly adjacent to or above an electrical outlet or switch, creating ignition risk",
+    "severity": "medium",
+    "visual_signals": ["hand sanitizer dispenser mounted next to outlet", "ABHR dispenser directly above light switch", "alcohol gel drip stain near electrical receptacle", "hand rub unit within inches of electrical panel"],
+    "category": "or_areas"
+  },
+  {
+    "rule_id": "hc_021",
+    "description": "Medications left unattended, unsecured, or accessible in unlocked areas outside the direct supervision of authorized staff",
+    "severity": "critical",
+    "visual_signals": ["medication cups left on unattended counter", "open medication cart in empty hallway", "unlocked medication cabinet door ajar", "syringes with medication on unattended tray"],
+    "category": "pharmacy"
+  },
+  {
+    "rule_id": "hc_022",
+    "description": "Food items or beverages stored directly on the floor rather than on shelves at least six inches above floor level",
+    "severity": "medium",
+    "visual_signals": ["food cases stacked on kitchen floor", "beverage boxes placed directly on floor", "produce stored on ground level without shelf", "supply containers resting on floor in dietary area"],
+    "category": "kitchen"
+  },
+  {
+    "rule_id": "hc_023",
+    "description": "Electrical panel clearance violated by stored items, equipment, or furniture within the required 36-inch working space",
+    "severity": "high",
+    "visual_signals": ["boxes stacked in front of electrical panel", "equipment stored against breaker panel", "shelving unit within 36 inches of panel", "cleaning cart parked before electrical room panel"],
+    "category": "mechanical"
+  },
+  {
+    "rule_id": "hc_024",
+    "description": "Unsealed penetrations, gaps, or holes in fire-rated wall or floor assemblies from cabling, piping, or construction modifications",
+    "severity": "critical",
+    "visual_signals": ["hole around pipe through rated wall", "unsealed cable penetration in fire wall", "gap around conduit through floor assembly", "missing firestop material at wall opening"],
+    "category": "mechanical"
+  },
+  {
+    "rule_id": "hc_025",
+    "description": "Emergency vehicle access lane or fire department connection blocked by parked vehicles, dumpsters, or construction materials",
+    "severity": "critical",
+    "visual_signals": ["vehicle parked in fire lane", "dumpster blocking fire department connection", "construction materials in emergency access drive", "delivery truck in no-parking fire zone"],
+    "category": "exterior"
+  },
+  {
+    "rule_id": "hc_026",
+    "description": "Exterior exit discharge door blocked, locked from the egress side, or obstructed preventing free egress to the public way",
+    "severity": "critical",
+    "visual_signals": ["chain and padlock on exit door", "equipment blocking exterior exit path", "exit door handle secured with zip tie", "pallet stacked against exterior egress door"],
+    "category": "exterior"
   }
 ]

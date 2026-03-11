@@ -1,86 +1,163 @@
 [
   {
     "rule_id": "kit_001",
-    "description": "Hood vents and exhaust filters must be free of excessive grease buildup",
+    "description": "Grease buildup visible on hood interior surfaces indicating inadequate cleaning frequency",
     "severity": "critical",
-    "visual_signals": ["hood", "vent", "grease", "filter", "buildup"],
-    "category": "fire_safety"
+    "visual_signals": ["dark greasy coating on hood interior walls", "thick grease layer on hood plenum", "sticky residue visible inside canopy hood"],
+    "category": "hood_system"
   },
   {
     "rule_id": "kit_002",
-    "description": "Fire suppression system must have current inspection tags and accessible pull stations",
+    "description": "Grease dripping or hanging from exhaust filters indicating saturation beyond serviceable condition",
     "severity": "critical",
-    "visual_signals": ["ansul", "suppression", "tag", "expired", "pull_station"],
-    "category": "fire_safety"
+    "visual_signals": ["grease dripping from baffle filters", "oil droplets forming on filter edges", "grease pooling beneath exhaust filters"],
+    "category": "hood_system"
   },
   {
     "rule_id": "kit_003",
-    "description": "K-class fire extinguisher must be present and charged near cooking line",
-    "severity": "high",
-    "visual_signals": ["extinguisher", "missing", "gauge", "cooking_line"],
-    "category": "fire_safety"
+    "description": "Grease filters missing or displaced from hood leaving exhaust ductwork unprotected",
+    "severity": "critical",
+    "visual_signals": ["empty filter slot in hood", "filter hanging loosely or at angle", "bare ductwork visible where filter should be seated"],
+    "category": "hood_system"
   },
   {
     "rule_id": "kit_004",
-    "description": "Floors must be free of grease and water — wet floor signs required for spills",
-    "severity": "high",
-    "visual_signals": ["floor", "grease", "wet", "spill", "sign"],
-    "category": "slip_trip"
+    "description": "Fire suppression nozzle caps clogged with grease preventing proper spray pattern deployment",
+    "severity": "critical",
+    "visual_signals": ["grease-coated nozzle caps on suppression system", "nozzle openings obscured by buildup", "discolored or plugged Ansul nozzles"],
+    "category": "hood_system"
   },
   {
     "rule_id": "kit_005",
-    "description": "Food in walk-in coolers must be covered, labeled, and stored at proper height",
-    "severity": "high",
-    "visual_signals": ["food", "uncovered", "cooler", "shelving", "raw_meat"],
-    "category": "food_safety"
+    "description": "Fusible links in hood suppression system coated in grease potentially raising activation temperature",
+    "severity": "critical",
+    "visual_signals": ["grease-encrusted fusible link", "discolored fusible link with thick coating", "fusible link not visibly clean and shiny"],
+    "category": "hood_system"
   },
   {
     "rule_id": "kit_006",
-    "description": "Raw and cooked foods must be separated — raw meat stored below ready-to-eat items",
+    "description": "Raw meat stored above ready-to-eat food creating cross-contamination risk",
     "severity": "high",
-    "visual_signals": ["raw", "cooked", "cross_contamination", "refrigerator"],
-    "category": "food_safety"
+    "visual_signals": ["raw poultry or meat on shelf above prepared food", "blood or juices dripping onto lower shelf items", "raw protein containers positioned above salads or cooked items"],
+    "category": "food_storage"
   },
   {
     "rule_id": "kit_007",
-    "description": "Kitchen staff must wear hair nets, gloves, and proper attire in prep areas",
-    "severity": "medium",
-    "visual_signals": ["person", "hair_net", "gloves", "attire", "prep"],
-    "category": "hygiene"
+    "description": "Food items stored on floor instead of minimum 6 inches off the ground",
+    "severity": "high",
+    "visual_signals": ["food cases or containers sitting directly on floor", "produce boxes on ground level", "ingredient bags resting on floor surface"],
+    "category": "food_storage"
   },
   {
     "rule_id": "kit_008",
-    "description": "Light covers must be intact over food prep areas (shatter protection)",
-    "severity": "medium",
-    "visual_signals": ["light", "cover", "broken", "missing", "prep_area"],
-    "category": "equipment"
+    "description": "Uncovered food containers in walk-in cooler or prep area exposing contents to contamination",
+    "severity": "high",
+    "visual_signals": ["open container without lid or wrap in cooler", "unwrapped food pan on shelf", "exposed food without protective covering"],
+    "category": "food_storage"
   },
   {
     "rule_id": "kit_009",
-    "description": "Kitchen exit doors must not be propped open or obstructed",
+    "description": "Expired date labels visible on stored food items indicating product past use-by date",
     "severity": "high",
-    "visual_signals": ["door", "exit", "propped", "blocked"],
-    "category": "egress"
+    "visual_signals": ["date label showing past date on food container", "expired prep date sticker", "discolored or old date marking on stored item"],
+    "category": "food_storage"
   },
   {
     "rule_id": "kit_010",
-    "description": "No evidence of pests — droppings, nesting material, or visible insects",
-    "severity": "critical",
-    "visual_signals": ["droppings", "pest", "insect", "rodent", "nesting"],
-    "category": "sanitation"
+    "description": "Food thawing at room temperature instead of under refrigeration or cold running water",
+    "severity": "high",
+    "visual_signals": ["frozen meat sitting on counter at ambient temperature", "food package thawing in standing water at room temp", "frost-covered protein left out on prep table"],
+    "category": "food_storage"
   },
   {
     "rule_id": "kit_011",
-    "description": "Electrical outlets near water sources must not be overloaded",
+    "description": "Mold or biofilm growth visible inside ice machine bin or dispensing chute",
     "severity": "high",
-    "visual_signals": ["outlet", "overloaded", "power_strip", "water", "sink"],
-    "category": "electrical"
+    "visual_signals": ["pink or black slime inside ice bin", "mold spots on ice machine interior walls", "biofilm on ice chute or deflector"],
+    "category": "equipment"
   },
   {
     "rule_id": "kit_012",
-    "description": "Dumpster area must have closed lids with no overflow or grease spills",
+    "description": "Refrigerator or walk-in cooler door gaskets damaged, torn, or not sealing properly",
     "severity": "medium",
-    "visual_signals": ["dumpster", "open", "overflow", "grease", "spill"],
-    "category": "sanitation"
+    "visual_signals": ["torn rubber gasket on cooler door", "gasket pulling away from door frame", "visible gap between closed door and gasket seal"],
+    "category": "equipment"
+  },
+  {
+    "rule_id": "kit_013",
+    "description": "Cracked or deeply scored cutting boards harboring bacteria in surface damage",
+    "severity": "medium",
+    "visual_signals": ["deep knife scores across cutting board surface", "visible cracks or splits in cutting board", "discolored grooves on worn cutting board"],
+    "category": "equipment"
+  },
+  {
+    "rule_id": "kit_014",
+    "description": "Rodent droppings visible in food storage, prep, or cooking areas",
+    "severity": "critical",
+    "visual_signals": ["small dark pellet-shaped droppings on shelves or floor", "droppings along wall edges or behind equipment", "gnaw marks with droppings near food packaging"],
+    "category": "pest"
+  },
+  {
+    "rule_id": "kit_015",
+    "description": "Pest glue traps showing catches indicating active infestation in kitchen area",
+    "severity": "high",
+    "visual_signals": ["insects or rodents caught on glue board", "multiple catches visible on single trap", "glue traps with debris indicating pest activity"],
+    "category": "pest"
+  },
+  {
+    "rule_id": "kit_016",
+    "description": "Overflowing waste bins or bins without lids attracting pests and creating sanitation hazard",
+    "severity": "medium",
+    "visual_signals": ["trash piled above bin rim", "waste bin with missing or open lid", "garbage overflow onto floor around bin"],
+    "category": "pest"
+  },
+  {
+    "rule_id": "kit_017",
+    "description": "Standing water or grease accumulation on kitchen floor creating slip hazard",
+    "severity": "high",
+    "visual_signals": ["water pooling on floor near drains", "greasy sheen on floor tiles", "standing liquid near cooking line or dish area"],
+    "category": "floors"
+  },
+  {
+    "rule_id": "kit_018",
+    "description": "Damaged, cracked, or missing floor tiles creating trip hazard and harborage for bacteria",
+    "severity": "medium",
+    "visual_signals": ["cracked or chipped floor tile", "missing tile exposing subfloor", "lifted tile edge creating uneven surface"],
+    "category": "floors"
+  },
+  {
+    "rule_id": "kit_019",
+    "description": "Empty hand soap or sanitizer dispensers at handwash stations preventing proper hand hygiene",
+    "severity": "high",
+    "visual_signals": ["empty soap dispenser at handwash sink", "no soap visible in dispenser unit", "hand sanitizer station with empty container"],
+    "category": "hygiene"
+  },
+  {
+    "rule_id": "kit_020",
+    "description": "Kitchen staff missing hair nets or gloves while handling food in prep areas",
+    "severity": "medium",
+    "visual_signals": ["worker with uncovered hair handling food", "bare hands touching ready-to-eat items", "missing hair restraint in food prep zone"],
+    "category": "hygiene"
+  },
+  {
+    "rule_id": "kit_021",
+    "description": "Fire extinguisher missing from designated mounting location near cooking line",
+    "severity": "critical",
+    "visual_signals": ["empty fire extinguisher bracket on wall", "missing extinguisher from designated station", "extinguisher mounting hook with no unit present"],
+    "category": "fire_safety"
+  },
+  {
+    "rule_id": "kit_022",
+    "description": "Fire extinguisher with expired inspection tag indicating overdue service",
+    "severity": "high",
+    "visual_signals": ["inspection tag with past-due date", "no current annual inspection tag on extinguisher", "expired service label on extinguisher body"],
+    "category": "fire_safety"
+  },
+  {
+    "rule_id": "kit_023",
+    "description": "Gaps in walls or baseboards near floor level providing pest entry points",
+    "severity": "medium",
+    "visual_signals": ["visible gap between baseboard and wall", "hole or crack in wall near floor", "daylight visible through wall penetration"],
+    "category": "floors"
   }
 ]

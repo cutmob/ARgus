@@ -1,86 +1,198 @@
 [
   {
     "rule_id": "wh_001",
-    "description": "Pallet racking must be undamaged — no bent uprights, missing beam pins, or deformed braces",
+    "description": "Damaged rack upright — bent, dented, or deformed vertical column compromising structural capacity",
     "severity": "critical",
-    "visual_signals": ["rack", "bent", "deformed", "damaged", "upright", "beam"],
-    "category": "structural"
+    "visual_signals": ["rack", "bent_upright", "dented_column", "deformed_frame", "buckled_steel"],
+    "category": "racking"
   },
   {
     "rule_id": "wh_002",
-    "description": "Pallets must not be stacked above rack height limits or in unstable configurations",
+    "description": "Missing beam locks — beam-to-upright safety clips absent, allowing beams to dislodge under impact",
     "severity": "high",
-    "visual_signals": ["pallet", "stacked", "overloaded", "leaning", "unstable"],
-    "category": "storage"
+    "visual_signals": ["beam", "no_safety_clip", "missing_pin", "beam_lock", "unsecured_beam"],
+    "category": "racking"
   },
   {
     "rule_id": "wh_003",
-    "description": "Forklift aisles must be clear of obstructions, debris, and shrink wrap",
-    "severity": "high",
-    "visual_signals": ["aisle", "blocked", "debris", "pallet", "obstruction"],
-    "category": "traffic"
+    "description": "Overloaded rack bay — visible sagging of beams or pallets exceeding posted load capacity",
+    "severity": "critical",
+    "visual_signals": ["rack", "sagging_beam", "overloaded", "excessive_weight", "bowed_shelf"],
+    "category": "racking"
   },
   {
     "rule_id": "wh_004",
-    "description": "Floor markings for pedestrian walkways and forklift lanes must be visible",
+    "description": "Missing load capacity signage — rack system lacking posted maximum load per level and total bay capacity",
     "severity": "medium",
-    "visual_signals": ["floor", "markings", "faded", "paint", "line"],
-    "category": "traffic"
+    "visual_signals": ["rack", "no_capacity_sign", "missing_placard", "unlabeled_rack"],
+    "category": "racking"
   },
   {
     "rule_id": "wh_005",
-    "description": "Loading dock edges must have visual barriers and dock plates properly placed",
-    "severity": "critical",
-    "visual_signals": ["dock", "edge", "barrier", "plate", "gap"],
-    "category": "dock"
+    "description": "Missing column protectors — rack uprights at aisle ends without bollards or guards to absorb forklift impact",
+    "severity": "high",
+    "visual_signals": ["rack_base", "no_guard", "no_bollard", "exposed_upright", "aisle_end"],
+    "category": "racking"
   },
   {
     "rule_id": "wh_006",
-    "description": "Forklifts must not travel with raised forks when unloaded",
+    "description": "Pallet overhanging rack edge — pallet or load extending beyond beam face creating strike or fall hazard",
     "severity": "high",
-    "visual_signals": ["forklift", "forks", "raised", "traveling"],
-    "category": "equipment"
+    "visual_signals": ["pallet", "overhang", "extending_load", "beam_edge", "protruding_pallet"],
+    "category": "racking"
   },
   {
     "rule_id": "wh_007",
-    "description": "Workers on foot in forklift zones must wear high-visibility vests",
-    "severity": "medium",
-    "visual_signals": ["person", "vest", "high_vis", "forklift", "zone"],
-    "category": "ppe"
+    "description": "Forklift traveling with raised forks — forks elevated above 4 inches while moving, reducing stability and visibility",
+    "severity": "high",
+    "visual_signals": ["forklift", "raised_forks", "traveling", "elevated_forks", "moving"],
+    "category": "forklift"
   },
   {
     "rule_id": "wh_008",
-    "description": "Sprinkler heads must have minimum 18-inch clearance below (NFPA 13)",
+    "description": "Unsecured forklift load — load not tilted back or too tall/wide, at risk of sliding or falling during transport",
     "severity": "high",
-    "visual_signals": ["sprinkler", "clearance", "storage", "ceiling"],
-    "category": "fire_safety"
+    "visual_signals": ["forklift", "unstable_load", "leaning_pallet", "unsecured_cargo", "tilting"],
+    "category": "forklift"
   },
   {
     "rule_id": "wh_009",
-    "description": "Emergency exits must not be blocked by stored inventory",
+    "description": "Pedestrian in forklift zone — worker on foot inside designated forklift travel lane without separation or escort",
     "severity": "critical",
-    "visual_signals": ["exit", "blocked", "inventory", "door"],
-    "category": "egress"
+    "visual_signals": ["person", "forklift", "same_aisle", "no_separation", "pedestrian_in_lane"],
+    "category": "forklift"
   },
   {
     "rule_id": "wh_010",
-    "description": "Wheel chocks must be in place at loading bays with docked trailers",
-    "severity": "high",
-    "visual_signals": ["wheel", "chock", "trailer", "dock", "bay"],
-    "category": "dock"
+    "description": "Forklift missing overhead guard — operator compartment lacks overhead protection against falling objects",
+    "severity": "critical",
+    "visual_signals": ["forklift", "no_overhead_guard", "missing_cage", "open_cab", "no_canopy"],
+    "category": "forklift"
   },
   {
     "rule_id": "wh_011",
-    "description": "Charging station areas must be free of spills and properly ventilated",
+    "description": "Forklift missing warning light — blue spot or strobe light absent, reducing pedestrian awareness of approaching truck",
     "severity": "medium",
-    "visual_signals": ["charging", "battery", "spill", "ventilation"],
-    "category": "equipment"
+    "visual_signals": ["forklift", "no_blue_light", "no_strobe", "no_warning_light", "no_horn"],
+    "category": "forklift"
   },
   {
     "rule_id": "wh_012",
-    "description": "Aisle and staging area lighting must be adequate and operational",
+    "description": "Dock door open without trailer — overhead door raised with no trailer sealed to the dock, creating fall hazard",
+    "severity": "critical",
+    "visual_signals": ["dock_door", "open_bay", "no_trailer", "empty_dock", "drop_off"],
+    "category": "dock"
+  },
+  {
+    "rule_id": "wh_013",
+    "description": "Missing dock plate — gap between trailer bed and dock floor without bridge plate, creating trip/fall risk",
+    "severity": "high",
+    "visual_signals": ["dock", "gap", "no_plate", "no_bridge", "trailer_gap"],
+    "category": "dock"
+  },
+  {
+    "rule_id": "wh_014",
+    "description": "Trailer not chocked — docked trailer without wheel chocks in place, risking trailer creep during loading",
+    "severity": "high",
+    "visual_signals": ["trailer", "no_chock", "missing_wheel_chock", "dock_bay", "unchocked"],
+    "category": "dock"
+  },
+  {
+    "rule_id": "wh_015",
+    "description": "Dock edge without safety striping — dock perimeter lacking yellow/black hazard markings to warn of drop-off",
     "severity": "medium",
-    "visual_signals": ["lighting", "dark", "burned_out", "aisle"],
-    "category": "lighting"
+    "visual_signals": ["dock_edge", "no_striping", "faded_paint", "unmarked_edge", "no_yellow_line"],
+    "category": "dock"
+  },
+  {
+    "rule_id": "wh_016",
+    "description": "Fire extinguisher missing — required extinguisher absent from mounting location or not visible in designated area",
+    "severity": "high",
+    "visual_signals": ["empty_bracket", "no_extinguisher", "missing_fire_equipment", "bare_wall_mount"],
+    "category": "fire_safety"
+  },
+  {
+    "rule_id": "wh_017",
+    "description": "Blocked fire exit — emergency exit door obstructed by pallets, inventory, equipment, or debris",
+    "severity": "critical",
+    "visual_signals": ["exit_door", "blocked", "pallets_blocking", "obstructed_exit", "inventory_stacked"],
+    "category": "fire_safety"
+  },
+  {
+    "rule_id": "wh_018",
+    "description": "Obstructed sprinkler heads — storage stacked within 18 inches of sprinkler deflectors violating NFPA 13 clearance",
+    "severity": "high",
+    "visual_signals": ["sprinkler", "close_storage", "insufficient_clearance", "ceiling", "pallet_near_sprinkler"],
+    "category": "fire_safety"
+  },
+  {
+    "rule_id": "wh_019",
+    "description": "Missing exit sign — emergency exit lacking illuminated or photoluminescent exit signage",
+    "severity": "medium",
+    "visual_signals": ["no_exit_sign", "dark_exit", "missing_sign", "unmarked_door"],
+    "category": "fire_safety"
+  },
+  {
+    "rule_id": "wh_020",
+    "description": "Aisle obstruction — travel aisle partially or fully blocked by pallets, equipment, trash, or staged goods",
+    "severity": "high",
+    "visual_signals": ["aisle", "blocked", "obstruction", "pallet_in_aisle", "narrow_passage"],
+    "category": "aisles"
+  },
+  {
+    "rule_id": "wh_021",
+    "description": "Faded floor markings — pedestrian lanes, forklift paths, or staging zones with worn or missing paint lines",
+    "severity": "medium",
+    "visual_signals": ["faded_line", "worn_paint", "floor_marking", "invisible_lane", "peeling_tape"],
+    "category": "aisles"
+  },
+  {
+    "rule_id": "wh_022",
+    "description": "Floor spill — liquid, oil, or granular material on floor creating slip hazard without cleanup or warning signs",
+    "severity": "high",
+    "visual_signals": ["spill", "wet_floor", "liquid", "oil_puddle", "no_wet_floor_sign"],
+    "category": "aisles"
+  },
+  {
+    "rule_id": "wh_023",
+    "description": "Tripping hazard — hoses, cables, shrink wrap, strapping, or small debris in walking or driving paths",
+    "severity": "medium",
+    "visual_signals": ["cable", "hose", "shrink_wrap", "strapping", "debris_on_floor"],
+    "category": "aisles"
+  },
+  {
+    "rule_id": "wh_024",
+    "description": "Worker without hard hat — employee in rack loading zone or under elevated work without head protection",
+    "severity": "high",
+    "visual_signals": ["person", "no_hard_hat", "bare_head", "loading_zone", "overhead_hazard"],
+    "category": "ppe"
+  },
+  {
+    "rule_id": "wh_025",
+    "description": "Worker without safety vest — employee in forklift traffic area lacking high-visibility garment",
+    "severity": "medium",
+    "visual_signals": ["person", "no_vest", "dark_clothing", "forklift_zone", "low_visibility"],
+    "category": "ppe"
+  },
+  {
+    "rule_id": "wh_026",
+    "description": "Blocked electrical panel — switchgear or breaker panel obstructed within 36-inch clearance zone (OSHA 1910.303)",
+    "severity": "high",
+    "visual_signals": ["electrical_panel", "blocked_panel", "storage_in_front", "no_clearance"],
+    "category": "electrical"
+  },
+  {
+    "rule_id": "wh_027",
+    "description": "Missing SDS or chemical label — hazardous material container without safety data sheet access or proper labeling",
+    "severity": "high",
+    "visual_signals": ["unlabeled_container", "no_sds", "chemical_drum", "missing_label", "unmarked_bottle"],
+    "category": "hazmat"
+  },
+  {
+    "rule_id": "wh_028",
+    "description": "Leaking drum — chemical, oil, or waste drum with visible drip, stain, or pooling beneath container",
+    "severity": "critical",
+    "visual_signals": ["leaking_drum", "drip", "stain_on_floor", "pooling_liquid", "corroded_drum"],
+    "category": "hazmat"
   }
 ]

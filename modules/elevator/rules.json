@@ -1,86 +1,233 @@
 [
   {
     "rule_id": "elev_001",
-    "description": "Emergency alarm button must be visible and undamaged",
-    "severity": "high",
-    "visual_signals": ["button", "control_panel", "damage", "alarm"],
-    "category": "safety_equipment"
+    "description": "Cab ceiling or recessed light fixtures burned out, dim, or flickering, reducing visibility below safe levels",
+    "severity": "medium",
+    "visual_signals": ["dark spots on ceiling", "flickering light tube", "dim cab interior", "unlit recessed fixture"],
+    "category": "lighting"
   },
   {
     "rule_id": "elev_002",
-    "description": "Interior lighting must be fully operational",
-    "severity": "medium",
-    "visual_signals": ["light", "lighting", "dark", "flickering"],
+    "description": "Emergency lighting unit missing, visibly damaged, or non-functional inside the cab",
+    "severity": "high",
+    "visual_signals": ["empty emergency light housing", "broken battery pack lens", "no emergency light unit visible", "cracked emergency lamp cover"],
     "category": "lighting"
   },
   {
     "rule_id": "elev_003",
-    "description": "Floor must be level and free of tripping hazards",
-    "severity": "high",
-    "visual_signals": ["floor", "gap", "uneven", "debris"],
-    "category": "structural"
+    "description": "Cab wall panels showing scratches, dents, puncture holes, or delamination exposing substrate",
+    "severity": "medium",
+    "visual_signals": ["deep scratch marks on wall panel", "dented stainless steel panel", "hole punched through wall finish", "peeling laminate on cab wall"],
+    "category": "cab_interior"
   },
   {
     "rule_id": "elev_004",
-    "description": "Door edges must have proper safety sensors",
-    "severity": "critical",
-    "visual_signals": ["door", "sensor", "edge", "gap"],
-    "category": "door_system"
+    "description": "Cab ceiling panels damaged, sagging, stained, or showing signs of water intrusion from the hoistway",
+    "severity": "medium",
+    "visual_signals": ["water stain on ceiling tile", "sagging ceiling panel", "discolored or warped ceiling section", "drip marks on cab ceiling"],
+    "category": "cab_interior"
   },
   {
     "rule_id": "elev_005",
-    "description": "Emergency phone must be accessible and functional",
+    "description": "Cab handrail loose, detached from mounting brackets, or entirely missing from the cab wall",
     "severity": "high",
-    "visual_signals": ["phone", "intercom", "communication"],
-    "category": "safety_equipment"
+    "visual_signals": ["handrail pulled away from wall", "missing mounting bracket", "handrail wobbles when touched", "empty bolt holes where handrail should be"],
+    "category": "cab_interior"
   },
   {
     "rule_id": "elev_006",
-    "description": "Weight capacity signage must be visible",
-    "severity": "medium",
-    "visual_signals": ["sign", "weight", "capacity", "label"],
-    "category": "signage"
+    "description": "Cab flooring worn through, torn, curling at edges, or presenting a trip hazard at the threshold",
+    "severity": "high",
+    "visual_signals": ["curled floor edge at door opening", "torn vinyl or carpet", "exposed subfloor beneath worn flooring", "uneven threshold transition"],
+    "category": "cab_interior"
   },
   {
     "rule_id": "elev_007",
-    "description": "Inspection certificate must be current and displayed",
-    "severity": "high",
-    "visual_signals": ["certificate", "inspection", "document", "date"],
-    "category": "compliance"
+    "description": "Cab mirror cracked, shattered, missing, or de-silvered to the point of being non-functional",
+    "severity": "medium",
+    "visual_signals": ["cracked mirror glass", "empty mirror frame on wall", "clouded de-silvered mirror surface", "missing rear-wall mirror"],
+    "category": "cab_interior"
   },
   {
     "rule_id": "elev_008",
-    "description": "Handrails must be secure and undamaged",
-    "severity": "medium",
-    "visual_signals": ["handrail", "rail", "grip", "loose"],
-    "category": "structural"
+    "description": "Car operating panel damaged, buttons broken or missing, Braille markings illegible, or faceplate loose",
+    "severity": "high",
+    "visual_signals": ["missing floor button", "cracked COP faceplate", "button stuck in depressed position", "worn-off Braille dots beside button"],
+    "category": "cab_interior"
   },
   {
     "rule_id": "elev_009",
-    "description": "Ventilation system must be operational",
+    "description": "Car door panel dented, scratched, corroded, or showing paint bubbling indicating hidden corrosion",
     "severity": "medium",
-    "visual_signals": ["vent", "ventilation", "fan", "airflow"],
-    "category": "ventilation"
+    "visual_signals": ["dent in center of door panel", "rust streaks on door surface", "paint bubbling at bottom of door", "deep gouge across door face"],
+    "category": "door_system"
   },
   {
     "rule_id": "elev_010",
-    "description": "Floor indicator display must accurately show current floor",
-    "severity": "low",
-    "visual_signals": ["display", "indicator", "floor_number", "screen"],
-    "category": "controls"
+    "description": "Car or hoistway doors misaligned, with asymmetric gaps at center parting or along the door edges",
+    "severity": "high",
+    "visual_signals": ["uneven gap between closed door panels", "one door panel higher than other", "visible light through door edge gap", "door panel offset from frame"],
+    "category": "door_system"
   },
   {
     "rule_id": "elev_011",
-    "description": "Door closing speed must not pose pinch hazard",
-    "severity": "high",
-    "visual_signals": ["door", "closing", "speed"],
+    "description": "Debris, dirt, or foreign objects lodged in the door track or landing sill groove preventing smooth door operation",
+    "severity": "medium",
+    "visual_signals": ["visible debris in sill groove", "dirt buildup in door track", "small objects caught in sill slot", "trash accumulated at door threshold"],
     "category": "door_system"
   },
   {
     "rule_id": "elev_012",
-    "description": "Cab walls and ceiling must be free of damage or corrosion",
+    "description": "Door safety edge or electronic reopening sensor visibly damaged, detached, or missing from the leading door edge",
+    "severity": "critical",
+    "visual_signals": ["rubber safety edge torn or hanging", "sensor strip detached from door edge", "missing infrared sensor unit", "wiring exposed at door edge sensor"],
+    "category": "door_system"
+  },
+  {
+    "rule_id": "elev_013",
+    "description": "Doors not fully closing, leaving a visible gap, preventing the door interlock from engaging properly",
+    "severity": "critical",
+    "visual_signals": ["gap between closed door panels", "door bouncing back before fully closing", "door stuck partially open", "light visible through door seam when closed"],
+    "category": "door_system"
+  },
+  {
+    "rule_id": "elev_014",
+    "description": "Landing door panel dented, corroded, bowed outward, or showing damage that compromises fire rating",
+    "severity": "high",
+    "visual_signals": ["dent in hallway-side elevator door", "rust on lower portion of landing door", "landing door panel bowed or warped", "visible gap in fire-rated door assembly"],
+    "category": "landing"
+  },
+  {
+    "rule_id": "elev_015",
+    "description": "Floor position indicator at the landing not illuminated, displaying incorrectly, or completely non-functional",
     "severity": "medium",
-    "visual_signals": ["wall", "ceiling", "rust", "corrosion", "damage"],
-    "category": "structural"
+    "visual_signals": ["dark floor indicator display", "blank LED segment in floor number", "flickering hall lantern", "no directional arrow illuminated"],
+    "category": "landing"
+  },
+  {
+    "rule_id": "elev_016",
+    "description": "Hall call button at the landing cracked, broken, missing its faceplate, or not illuminating when pressed",
+    "severity": "medium",
+    "visual_signals": ["cracked hall call button lens", "missing button faceplate at landing", "button pushed in and stuck", "no illumination on call button"],
+    "category": "landing"
+  },
+  {
+    "rule_id": "elev_017",
+    "description": "Excessive gap between the landing sill and the car sill exceeding ASME A17.1 clearance limits, creating an entrapment hazard",
+    "severity": "high",
+    "visual_signals": ["wide gap visible between car and landing floor", "sill plate shifted out of alignment", "shoe or small object could fall through gap", "landing sill worn or chipped enlarging gap"],
+    "category": "landing"
+  },
+  {
+    "rule_id": "elev_018",
+    "description": "Hallway lighting at the elevator landing inadequate, making it difficult to safely identify the car threshold",
+    "severity": "low",
+    "visual_signals": ["dim hallway near elevator entrance", "burned-out hallway fixture near landing", "shadowed area at elevator threshold", "no overhead light at landing"],
+    "category": "landing"
+  },
+  {
+    "rule_id": "elev_019",
+    "description": "Standing water or evidence of flooding in the elevator pit indicating sump pump failure or water intrusion",
+    "severity": "critical",
+    "visual_signals": ["water pooled on pit floor", "water line marks on pit walls", "rust staining from standing water", "submerged pit equipment"],
+    "category": "pit"
+  },
+  {
+    "rule_id": "elev_020",
+    "description": "Debris, trash, or contaminants accumulated in the elevator pit creating fire or vermin hazard",
+    "severity": "high",
+    "visual_signals": ["trash on pit floor", "oil-soaked rags in pit", "construction debris in pit", "accumulated dust and dirt on pit equipment"],
+    "category": "pit"
+  },
+  {
+    "rule_id": "elev_021",
+    "description": "Pit buffer springs or oil buffers showing visible damage, corrosion, leaking fluid, or misalignment",
+    "severity": "critical",
+    "visual_signals": ["corroded buffer spring", "oil buffer leaking fluid", "buffer plunger misaligned", "cracked buffer mounting plate"],
+    "category": "pit"
+  },
+  {
+    "rule_id": "elev_022",
+    "description": "Pit lighting fixture missing, broken, or non-functional preventing safe pit inspection access",
+    "severity": "medium",
+    "visual_signals": ["no illumination in pit area", "broken light fixture in pit", "empty light socket in pit", "pit light switch non-functional"],
+    "category": "pit"
+  },
+  {
+    "rule_id": "elev_023",
+    "description": "Machine room fire extinguisher missing from its designated location, discharged, or showing an expired inspection tag",
+    "severity": "high",
+    "visual_signals": ["empty fire extinguisher bracket on wall", "missing inspection tag on extinguisher", "pressure gauge in red zone", "expired date on extinguisher tag"],
+    "category": "machine_room"
+  },
+  {
+    "rule_id": "elev_024",
+    "description": "Oil leaks or hydraulic fluid spills on the machine room floor around the power unit or piping connections",
+    "severity": "high",
+    "visual_signals": ["oil puddle beneath hydraulic power unit", "fluid stain on machine room floor", "drip trail along hydraulic piping", "oil-saturated absorbent pad on floor"],
+    "category": "machine_room"
+  },
+  {
+    "rule_id": "elev_025",
+    "description": "Combustible materials, stored items, or debris present in the machine room violating dedicated-use requirements",
+    "severity": "high",
+    "visual_signals": ["cardboard boxes stored in machine room", "cleaning supplies on machine room shelf", "paint cans near controller", "non-elevator items stored against wall"],
+    "category": "machine_room"
+  },
+  {
+    "rule_id": "elev_026",
+    "description": "Frayed, spliced, or damaged electrical wiring visible in the machine room or controller cabinet",
+    "severity": "critical",
+    "visual_signals": ["exposed copper on frayed wire", "electrical tape splice on wiring", "insulation cracking on cables", "wires pulled from terminal block"],
+    "category": "machine_room"
+  },
+  {
+    "rule_id": "elev_027",
+    "description": "Machine room ventilation grilles blocked, fan not operating, or ambient temperature excessively high",
+    "severity": "medium",
+    "visual_signals": ["items stacked in front of ventilation grille", "non-spinning exhaust fan", "condensation on machine room walls", "blocked air intake louver"],
+    "category": "machine_room"
+  },
+  {
+    "rule_id": "elev_028",
+    "description": "Hoist ropes showing visible fraying, broken wires, flattening, or excessive wear beyond replacement criteria",
+    "severity": "critical",
+    "visual_signals": ["broken wire strands protruding from rope", "flattened or kinked rope section", "rust discoloration on rope surface", "visible wear groove on rope"],
+    "category": "hoistway"
+  },
+  {
+    "rule_id": "elev_029",
+    "description": "Guide rails showing corrosion, excessive wear on running surfaces, or missing rail clips and brackets",
+    "severity": "high",
+    "visual_signals": ["rust on guide rail surface", "worn groove on rail running face", "missing rail clip at bracket", "corroded rail bracket bolts"],
+    "category": "hoistway"
+  },
+  {
+    "rule_id": "elev_030",
+    "description": "Weight capacity data plate missing, illegible, or not posted in a conspicuous location inside the cab",
+    "severity": "medium",
+    "visual_signals": ["no capacity plate visible in cab", "faded or unreadable capacity label", "capacity sign obscured by damage", "missing rated load placard"],
+    "category": "signage"
+  },
+  {
+    "rule_id": "elev_031",
+    "description": "Inspection certificate missing from its required display location, expired, or illegible",
+    "severity": "high",
+    "visual_signals": ["empty certificate frame in cab", "expired date on inspection certificate", "certificate holder with no document", "faded or water-damaged certificate"],
+    "category": "signage"
+  },
+  {
+    "rule_id": "elev_032",
+    "description": "Emergency alarm button or intercom not visible, damaged, or missing its identifying signage on the car operating panel",
+    "severity": "high",
+    "visual_signals": ["alarm button icon worn off", "damaged intercom grille", "missing emergency communication label", "cracked alarm button cover"],
+    "category": "safety_equipment"
+  },
+  {
+    "rule_id": "elev_033",
+    "description": "Emergency phone or two-way communication device non-functional, handset missing, or instructions not posted",
+    "severity": "high",
+    "visual_signals": ["phone handset missing from cradle", "cut phone cord", "no emergency phone instructions posted", "phone compartment door missing"],
+    "category": "safety_equipment"
   }
 ]
