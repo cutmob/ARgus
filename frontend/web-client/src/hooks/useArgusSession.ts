@@ -16,6 +16,8 @@ interface Hazard {
   description: string;
   severity: string;
   confidence: number;
+  location?: string;
+  camera_id?: string;
   detected_at: string;
 }
 
@@ -27,6 +29,17 @@ interface WebSocketMessage {
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
+
+function generateCameraId(): string {
+  // Stable per-device ID persisted in localStorage
+  const key = "argus_camera_id";
+  let id = typeof window !== "undefined" ? localStorage.getItem(key) : null;
+  if (!id) {
+    id = "cam_" + Math.random().toString(36).slice(2, 10);
+    if (typeof window !== "undefined") localStorage.setItem(key, id);
+  }
+  return id;
+}
 
 export function useArgusSession() {
   const [connected, setConnected]       = useState(false);
@@ -44,7 +57,9 @@ export function useArgusSession() {
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const ws = new WebSocket(WS_URL);
+    const cameraId = generateCameraId();
+    const url = WS_URL + (WS_URL.includes("?") ? "&" : "?") + "camera_id=" + cameraId;
+    const ws = new WebSocket(url);
 
     ws.onopen = () => {
       setConnected(true);

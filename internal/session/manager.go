@@ -31,6 +31,7 @@ func (m *Manager) Create(cfg SessionConfig) *Session {
 		ID:             cfg.SessionID,
 		InspectionMode: cfg.InspectionMode,
 		ActiveRuleset:  cfg.RulesetID,
+		CameraID:       cfg.CameraID,
 		State:          StateActive,
 		Hazards:        make([]types.Hazard, 0),
 		FrameBuffer:    NewFrameBuffer(cfg.BufferSize),

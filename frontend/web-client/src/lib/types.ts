@@ -4,9 +4,11 @@ export interface Hazard {
   description: string;
   severity: "low" | "medium" | "high" | "critical";
   confidence: number;
+  location?: string;
   bbox?: BBox;
   frame_id?: string;
   image_url?: string;
+  camera_id?: string;
   detected_at: string;
 }
 

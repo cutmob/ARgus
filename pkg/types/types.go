@@ -6,6 +6,7 @@ import "time"
 type Frame struct {
 	ID        string    `json:"id"`
 	SessionID string    `json:"session_id"`
+	CameraID  string    `json:"camera_id,omitempty"`
 	Data      []byte    `json:"-"`
 	Width     int       `json:"width"`
 	Height    int       `json:"height"`
@@ -46,9 +47,11 @@ type Hazard struct {
 	Description string    `json:"description"`
 	Severity    Severity  `json:"severity"`
 	Confidence  float64   `json:"confidence"`
+	Location    string    `json:"location,omitempty"`
 	BBox        *BBox     `json:"bbox,omitempty"`
 	FrameID     string    `json:"frame_id,omitempty"`
 	ImageURL    string    `json:"image_url,omitempty"`
+	CameraID    string    `json:"camera_id,omitempty"`
 	DetectedAt  time.Time `json:"detected_at"`
 }
 

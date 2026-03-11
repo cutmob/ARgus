@@ -11,15 +11,16 @@ import (
 
 // LiveSession wraps a single Gemini Live API bidirectional streaming session.
 type LiveSession struct {
-	mu            sync.Mutex
-	session       *genai.Session
-	sessionID     string
-	model         string
-	active        bool
-	onText        func(sessionID, text string)
-	onAudio       func(sessionID string, data []byte)
-	onToolCall    func(sessionID string, calls []*genai.FunctionCall)
-	onTranscript  func(sessionID, speaker, text string)
+	mu              sync.Mutex
+	session         *genai.Session
+	sessionID       string
+	model           string
+	active          bool
+	resumeHandle    string
+	onText          func(sessionID, text string)
+	onAudio         func(sessionID string, data []byte)
+	onToolCall      func(sessionID string, calls []*genai.FunctionCall)
+	onTranscript    func(sessionID, speaker, text string)
 }
 
 // LiveSessionConfig holds everything needed to start a Live session.
@@ -39,6 +40,20 @@ func NewLiveSession(ctx context.Context, client *Client, cfg LiveSessionConfig) 
 		ResponseModalities: []genai.Modality{genai.ModalityAudio, genai.ModalityText},
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{genai.NewPartFromText(cfg.SystemPrompt)},
+		},
+		// Use low resolution for video frames to conserve tokens (64 vs 256)
+		MediaResolution: genai.MediaResolutionLow,
+		// Enable context window compression so sessions survive beyond 2 minutes
+		ContextWindowCompression: &genai.ContextWindowCompressionConfig{
+			SlidingWindow: &genai.SlidingWindow{},
+		},
+		// Enable session resumption for automatic reconnection on WebSocket resets
+		SessionResumption: &genai.SessionResumptionConfig{
+			Transparent: true,
+		},
+		// Let the model ignore irrelevant background noise
+		Proactivity: &genai.ProactivityConfig{
+			ProactiveAudio: genai.Ptr(true),
 		},
 		InputAudioTranscription:  &genai.AudioTranscriptionConfig{},
 		OutputAudioTranscription: &genai.AudioTranscriptionConfig{},
@@ -165,6 +180,13 @@ func (ls *LiveSession) IsActive() bool {
 	return ls.active
 }
 
+// ResumeHandle returns the latest session resumption handle for reconnection.
+func (ls *LiveSession) ResumeHandle() string {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	return ls.resumeHandle
+}
+
 func (ls *LiveSession) receiveLoop(ctx context.Context) {
 	defer func() {
 		ls.mu.Lock()
@@ -228,6 +250,15 @@ func (ls *LiveSession) handleServerMessage(msg *genai.LiveServerMessage) {
 	if msg.ToolCall != nil && len(msg.ToolCall.FunctionCalls) > 0 {
 		if ls.onToolCall != nil {
 			ls.onToolCall(ls.sessionID, msg.ToolCall.FunctionCalls)
+		}
+	}
+
+	if msg.SessionResumptionUpdate != nil {
+		if msg.SessionResumptionUpdate.Resumable && msg.SessionResumptionUpdate.NewHandle != "" {
+			ls.mu.Lock()
+			ls.resumeHandle = msg.SessionResumptionUpdate.NewHandle
+			ls.mu.Unlock()
+			slog.Debug("session resumption handle updated", "session_id", ls.sessionID)
 		}
 	}
 

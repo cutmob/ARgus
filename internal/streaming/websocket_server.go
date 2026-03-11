@@ -37,6 +37,7 @@ type WebSocketServer struct {
 type Client struct {
 	conn      *websocket.Conn
 	sessionID string
+	cameraID  string
 	send      chan []byte
 	done      chan struct{}
 }
@@ -60,10 +61,15 @@ func (ws *WebSocketServer) HandleConnection(w http.ResponseWriter, r *http.Reque
 	if sessionID == "" {
 		sessionID = generateID()
 	}
+	cameraID := r.URL.Query().Get("camera_id")
+	if cameraID == "" {
+		cameraID = "cam_" + sessionID[:8]
+	}
 
 	client := &Client{
 		conn:      conn,
 		sessionID: sessionID,
+		cameraID:  cameraID,
 		send:      make(chan []byte, 256),
 		done:      make(chan struct{}),
 	}
@@ -152,7 +158,7 @@ func (ws *WebSocketServer) readPump(c *Client) {
 
 		switch messageType {
 		case websocket.BinaryMessage:
-			ws.handleBinaryMessage(c.sessionID, data)
+			ws.handleBinaryMessage(c.sessionID, c.cameraID, data)
 		case websocket.TextMessage:
 			ws.handleTextMessage(c.sessionID, data)
 		}
@@ -188,7 +194,7 @@ func (ws *WebSocketServer) writePump(c *Client) {
 	}
 }
 
-func (ws *WebSocketServer) handleBinaryMessage(sessionID string, data []byte) {
+func (ws *WebSocketServer) handleBinaryMessage(sessionID string, cameraID string, data []byte) {
 	// Binary messages are either video frames or audio chunks.
 	// First byte indicates type: 0x01 = frame, 0x02 = audio
 	if len(data) < 2 {
@@ -200,6 +206,7 @@ func (ws *WebSocketServer) handleBinaryMessage(sessionID string, data []byte) {
 		frame := types.Frame{
 			ID:        generateID(),
 			SessionID: sessionID,
+			CameraID:  cameraID,
 			Data:      data[1:],
 			Format:    "jpeg",
 			Timestamp: time.Now(),

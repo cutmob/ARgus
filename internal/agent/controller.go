@@ -145,10 +145,16 @@ func (c *Controller) startInspection(sessionID string, intent types.AgentIntent)
 		return c.responseMgr.Error("I don't have an inspection module for " + mode)
 	}
 
+	cameraID := ""
+	if intent.Parameters != nil {
+		cameraID = intent.Parameters["camera_id"]
+	}
+
 	sess := c.sessions.Create(session.SessionConfig{
 		SessionID:      sessionID,
 		InspectionMode: mode,
 		RulesetID:      mod.Name + "_v" + mod.Version,
+		CameraID:       cameraID,
 		BufferSize:     30,
 		Metadata:       intent.Parameters,
 	})
@@ -160,7 +166,17 @@ func (c *Controller) startInspection(sessionID string, intent types.AgentIntent)
 	if systemPrompt == "" {
 		systemPrompt = "You are ARGUS, an AI safety inspection copilot. Analyze the environment for hazards."
 	}
-	systemPrompt += "\n\nActive inspection mode: " + mode + "\nRules loaded: " + itoa(len(mod.Rules))
+
+	systemPrompt += "\n\nSpatial & temporal awareness:" +
+		"\n- Each frame arrives with a timestamp and camera ID in the format [FRAME <ISO8601> | camera:<id>]." +
+		"\n- Use timestamps to track how long hazards persist and note elapsed time in alerts." +
+		"\n- Use the camera ID to distinguish between multiple feeds and reference which camera spotted an issue." +
+		"\n- Describe hazard locations spatially (e.g. \"left side of frame\", \"near the exit door\", \"overhead\", \"at ground level\")." +
+		"\n- When reporting, include the approximate location within the scene and which camera captured it." +
+		"\n\nActive inspection mode: " + mode +
+		"\nCamera: " + cameraID +
+		"\nSession started: " + time.Now().Format("2006-01-02T15:04:05Z07:00") +
+		"\nRules loaded: " + itoa(len(mod.Rules))
 	for i, r := range mod.Rules {
 		systemPrompt += "\n" + itoa(i+1) + ". [" + string(r.Severity) + "] " + r.Description
 	}
@@ -336,8 +352,14 @@ func (c *Controller) sendFrameToGemini(sess *session.Session, event types.Vision
 	ls, hasLive := c.liveSessions[sess.ID]
 	c.mu.RUnlock()
 
-	// Live session path: stream the frame directly
+	// Live session path: stream the frame with spatial/temporal context
 	if hasLive && ls.IsActive() && event.Frame != nil {
+		// Inject timestamp + camera context so Gemini can reason about time and space
+		meta := "[FRAME " + event.Frame.Timestamp.Format("2006-01-02T15:04:05Z07:00") +
+			" | camera:" + event.Frame.CameraID + "]"
+		if err := ls.SendText(meta); err != nil {
+			slog.Debug("failed to send frame metadata", "error", err)
+		}
 		if err := ls.SendVideoFrame(event.Frame.Data); err != nil {
 			slog.Error("failed to send frame to gemini live",
 				"session_id", sess.ID,
@@ -500,6 +522,11 @@ func (c *Controller) toolInspectFrame(sessionID string, args map[string]any) map
 		return map[string]any{"error": "failed to parse hazards"}
 	}
 
+	sess, _ := c.sessions.Get(sessionID)
+	camID := ""
+	if sess != nil {
+		camID = sess.CameraID
+	}
 	for _, h := range hazardInputs {
 		c.sessions.AddHazard(sessionID, types.Hazard{
 			ID:          sessionID + "_" + itoa(int(time.Now().UnixMilli())),
@@ -507,6 +534,7 @@ func (c *Controller) toolInspectFrame(sessionID string, args map[string]any) map
 			Description: h.Description,
 			Severity:    types.Severity(h.Severity),
 			Confidence:  h.Confidence,
+			CameraID:    camID,
 			DetectedAt:  time.Now(),
 		})
 	}
@@ -567,12 +595,18 @@ func (c *Controller) toolLogIssue(sessionID string, args map[string]any) map[str
 	conf, _ := args["confidence"].(float64)
 	ruleID, _ := args["rule_id"].(string)
 
+	logSess, _ := c.sessions.Get(sessionID)
+	logCamID := ""
+	if logSess != nil {
+		logCamID = logSess.CameraID
+	}
 	c.sessions.AddHazard(sessionID, types.Hazard{
 		ID:          sessionID + "_" + itoa(int(time.Now().UnixMilli())),
 		RuleID:      ruleID,
 		Description: desc,
 		Severity:    types.Severity(sev),
 		Confidence:  conf,
+		CameraID:    logCamID,
 		DetectedAt:  time.Now(),
 	})
 

@@ -20,6 +20,7 @@ type Session struct {
 	ID             string            `json:"id"`
 	InspectionMode string            `json:"inspection_mode"`
 	ActiveRuleset  string            `json:"active_ruleset"`
+	CameraID       string            `json:"camera_id,omitempty"`
 	State          SessionState      `json:"state"`
 	Hazards        []types.Hazard    `json:"hazards"`
 	FrameBuffer    *FrameBuffer      `json:"-"`
@@ -35,6 +36,7 @@ type SessionConfig struct {
 	SessionID      string
 	InspectionMode string
 	RulesetID      string
+	CameraID       string
 	BufferSize     int
 	Metadata       map[string]string
 }

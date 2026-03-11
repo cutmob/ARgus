@@ -1,7 +1,5 @@
 # ARGUS
 
-> *Speak to it. Point a camera at it. It tells you what's dangerous.*
-
 ARGUS is a real-time AI safety inspection platform built on the Gemini Live API. It maintains a persistent bidirectional stream of audio and video, reasons about the environment against swappable inspection rule sets, annotates hazards with AR overlays, and speaks findings back to the operator — all with sub-second latency and native interruption support.
 
 Built for the **Gemini Live Agent Challenge** · Category: **Live Agents**

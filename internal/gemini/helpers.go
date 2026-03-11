@@ -24,6 +24,8 @@ func hazardResponseSchema() map[string]any {
 						"description": map[string]any{"type": "string", "description": "What was observed"},
 						"severity":    map[string]any{"type": "string", "enum": []string{"low", "medium", "high", "critical"}},
 						"confidence":  map[string]any{"type": "number", "description": "0.0 to 1.0"},
+						"location":    map[string]any{"type": "string", "description": "Spatial location in the scene, e.g. 'left side near exit door', 'overhead center', 'ground level right'"},
+						"camera_id":   map[string]any{"type": "string", "description": "Camera that captured this hazard"},
 					},
 					"required": []string{"description", "severity", "confidence"},
 				},
@@ -39,6 +41,15 @@ func hazardResponseSchema() map[string]any {
 // buildAnalysisPrompt constructs the vision analysis prompt from rules and detected objects.
 func buildAnalysisPrompt(req types.GeminiRequest) string {
 	prompt := "You are ARGUS, an AI safety inspection system. Analyze this image for safety hazards.\n\n"
+
+	// Spatial and temporal context
+	if req.Frame != nil {
+		prompt += fmt.Sprintf("Frame captured: %s\n", req.Frame.Timestamp.Format("2006-01-02T15:04:05Z07:00"))
+		if req.Frame.CameraID != "" {
+			prompt += fmt.Sprintf("Camera: %s\n", req.Frame.CameraID)
+		}
+		prompt += "Describe the spatial location of each hazard within the scene (e.g. left/right/center, foreground/background, near specific objects).\n\n"
+	}
 
 	if len(req.Objects) > 0 {
 		prompt += "Objects detected in scene:\n"
