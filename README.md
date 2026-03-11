@@ -48,15 +48,56 @@ ARGUS makes inspection continuous, conversational, and immediate. Point any came
 
 | Feature | Detail |
 |---|---|
-| Real-time hazard detection | JPEG frames streamed to Gemini Live at up to 2 fps |
+| Real-time hazard detection | JPEG frames streamed to Gemini Live at 1 fps |
 | Bidirectional voice | Raw PCM audio streamed in both directions; Gemini responds in speech |
 | Interruption handling | Mid-response user speech immediately cancels the current output |
-| Wake word activation | Say **"argus"** to start or stop an inspection hands-free |
-| AR hazard overlays | Severity-coloured rings rendered over the live camera feed |
+| Wake word activation | Say **"argus"** to start an inspection hands-free |
+| Glassmorphic AR overlays | Dark or light liquid-glass overlays with severity-coded corner brackets |
 | Swappable rule modules | 20 industry-specific inspection rule sets — hot-switchable mid-session |
-| Voice commands | `inspect` · `stop` · `status` · `report` |
-| Report generation | Full inspection reports exported as JSON or PDF |
+| Voice commands | See full command reference below |
+| Report generation | Full inspection reports exported as JSON |
 | Adaptive interface | Auto-detects context and renders the right UI: Smartphone / CCTV / AR |
+
+---
+
+## Voice Commands
+
+ARGUS is designed to be fully voice-controlled. All commands work in AR and Smartphone modes.
+
+### Wake word
+
+| Phrase | Action |
+|---|---|
+| **"argus"** | Start inspection (only activates — never stops) |
+
+The wake word activates ARGUS. If the word "stop", "end", "cancel", "abort", or "halt" appears in the same utterance, activation is suppressed so follow-on commands are handled cleanly.
+
+### Inspection control
+
+| Phrase | Action |
+|---|---|
+| "inspect" / "start" | Start inspection |
+| "stop" / "end inspection" | Stop inspection |
+| "report" | Generate inspection report |
+| "status" | Speak hazard count and current risk level |
+
+### Overlays
+
+| Phrase | Action |
+|---|---|
+| "overlay" / "show" / "hide" | Toggle hazard overlays on/off |
+| "light" / "bright" | Switch to light liquid-glass overlay style |
+| "dark" | Switch to dark liquid-glass overlay style |
+
+### CCTV keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `O` | Toggle overlays |
+
+### Smartphone
+
+The pull-up sheet at the bottom of the screen has a `◑` / `○` button to toggle between dark and light glass overlay styles.
 
 ---
 
@@ -64,11 +105,11 @@ ARGUS makes inspection continuous, conversational, and immediate. Point any came
 
 ARGUS detects the device and environment on load and renders one of three purpose-built interfaces — no configuration required.
 
-**Smartphone** — Full-screen camera viewfinder with a pull-up hazard sheet. Designed for fieldwork and handheld inspection.
+**Smartphone** — Full-screen camera viewfinder with a pull-up hazard sheet (mode selector, inspect/stop/report actions, hazard log, glass style toggle). Designed for fieldwork and handheld inspection.
 
 **CCTV** — Multi-feed 2×2 grid with a sidebar showing risk level, hazard log, mode selector, and keyboard shortcuts. Designed for fixed monitoring stations.
 
-**AR / Headset** — Completely invisible UI. The only visual element is a tiny indicator in the top-left corner: a spinning arc while processing, audio bars while speaking, nothing while idle. No dashboard, no buttons. The wearer controls everything by voice — the display is pure camera passthrough.
+**AR / Headset** — Near-invisible UI. A tiny indicator in the top-left corner shows state: spinning arc while processing, audio bars while speaking, a context label ("watching", "scanning", "N flagged") while active, nothing while idle. No dashboard, no buttons. Everything is voice-controlled — the display is pure camera passthrough.
 
 ---
 
