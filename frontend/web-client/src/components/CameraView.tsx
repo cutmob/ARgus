@@ -34,15 +34,33 @@ export function CameraView({ overlays, overlaysVisible = true, onFrame }: Camera
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!videoRef.current || !canvasRef.current) return;
+      const video  = videoRef.current;
       const canvas = canvasRef.current;
-      const ctx    = canvas.getContext("2d");
+      if (!video || !canvas) return;
+      const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      canvas.width  = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      ctx.drawImage(videoRef.current, 0, 0);
+
+      // Match the canvas to the element's rendered size so bounding boxes
+      // from Gemini align with what the overlay sees (object-cover crop).
+      const el = video.getBoundingClientRect();
+      const elW = el.width;
+      const elH = el.height;
+      const vW  = video.videoWidth;
+      const vH  = video.videoHeight;
+      if (!vW || !vH || !elW || !elH) return;
+
+      // Compute the object-cover source rect (same math the browser uses)
+      const scale = Math.max(elW / vW, elH / vH);
+      const srcW  = elW / scale;
+      const srcH  = elH / scale;
+      const srcX  = (vW - srcW) / 2;
+      const srcY  = (vH - srcH) / 2;
+
+      canvas.width  = Math.round(srcW);
+      canvas.height = Math.round(srcH);
+      ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
       canvas.toBlob((blob) => { if (blob) onFrame(blob); }, "image/jpeg", 0.7);
-    }, 3000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [onFrame]);
 
