@@ -2,24 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { speakResponse } from "@/lib/tts";
-
-interface Overlay {
-  type: string;
-  label: string;
-  bbox?: { x: number; y: number; width: number; height: number };
-  severity: string;
-  color: string;
-}
-
-interface Hazard {
-  id: string;
-  description: string;
-  severity: string;
-  confidence: number;
-  location?: string;
-  camera_id?: string;
-  detected_at: string;
-}
+import type { Hazard, Overlay } from "@/lib/types";
 
 interface WebSocketMessage {
   type: string;

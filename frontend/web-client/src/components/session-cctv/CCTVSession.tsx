@@ -22,6 +22,7 @@ interface CCTVSessionProps {
   };
   mode: string;
   onModeChange: (mode: string) => void;
+  overlaysVisible?: boolean;
 }
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -38,7 +39,7 @@ const RISK_COLOR: Record<string, string> = {
   critical: "#ef4444",
 };
 
-export function CCTVSession({ session, mode, onModeChange }: CCTVSessionProps) {
+export function CCTVSession({ session, mode, onModeChange, overlaysVisible = true }: CCTVSessionProps) {
   const [activeFeed, setActiveFeed] = useState(0);
   const [time, setTime]             = useState("");
 
@@ -110,6 +111,7 @@ export function CCTVSession({ session, mode, onModeChange }: CCTVSessionProps) {
         <div className="flex-1 overflow-hidden">
           <FeedGrid
             overlays={session.overlays}
+            overlaysVisible={overlaysVisible}
             onFrame={session.sendFrame}
             activeFeed={activeFeed}
             onSelectFeed={setActiveFeed}
@@ -221,7 +223,7 @@ export function CCTVSession({ session, mode, onModeChange }: CCTVSessionProps) {
           {/* Keyboard shortcuts */}
           <div className="px-5 py-3" style={{ borderTop: "1px solid #1c1c1c" }}>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
-              {[["I", "inspect"], ["R", "report"], ["1–4", "feed"]].map(([k, v]) => (
+              {[["I", "inspect"], ["R", "report"], ["O", "overlays"], ["1–4", "feed"]].map(([k, v]) => (
                 <div key={k} className="flex items-center gap-1.5">
                   <kbd
                     className="font-mono text-xs px-1 py-px"

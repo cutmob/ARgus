@@ -22,6 +22,7 @@ interface SmartphoneSessionProps {
   };
   mode: string;
   onModeChange: (mode: string) => void;
+  overlaysVisible?: boolean;
 }
 
 const RISK_COLOR: Record<string, string> = {
@@ -31,7 +32,7 @@ const RISK_COLOR: Record<string, string> = {
   critical: "#ef4444",
 };
 
-export function SmartphoneSession({ session, mode, onModeChange }: SmartphoneSessionProps) {
+export function SmartphoneSession({ session, mode, onModeChange, overlaysVisible = true }: SmartphoneSessionProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const indicatorState = session.speaking ? "speaking" : session.processing ? "processing" : "idle";
   const riskColor = RISK_COLOR[session.riskLevel] ?? "#4a4a4a";
@@ -40,7 +41,7 @@ export function SmartphoneSession({ session, mode, onModeChange }: SmartphoneSes
     <div className="h-screen w-screen bg-black relative overflow-hidden">
       {/* Camera */}
       <div className="absolute inset-0">
-        <CameraView overlays={session.overlays} onFrame={session.sendFrame} />
+        <CameraView overlays={session.overlays} overlaysVisible={overlaysVisible} onFrame={session.sendFrame} />
       </div>
 
       {/* Top status */}

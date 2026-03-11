@@ -36,12 +36,17 @@ func ArgusTools() []*genai.Tool {
 				},
 				{
 					Name:        "highlight_hazard",
-					Description: "Highlight a detected hazard on the camera overlay for the user to see. Call this when a hazard should be visually marked.",
+					Description: "Highlight a detected hazard on the camera overlay for the user to see. Call this when a hazard should be visually marked. Include box_2d if you can localize it.",
 					Parameters: &genai.Schema{
 						Type: "object",
 						Properties: map[string]*genai.Schema{
 							"label":    {Type: "string", Description: "Short label for the hazard"},
 							"severity": {Type: "string", Description: "low, medium, high, or critical"},
+							"box_2d": {
+								Type:        "array",
+								Description: "Bounding box as [ymin, xmin, ymax, xmax] with values 0-1000",
+								Items:       &genai.Schema{Type: "number"},
+							},
 						},
 						Required: []string{"label", "severity"},
 					},

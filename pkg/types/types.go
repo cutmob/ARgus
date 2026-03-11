@@ -33,11 +33,12 @@ type DetectedObject struct {
 }
 
 // BBox defines a bounding box for visual overlays.
+// Coordinates are normalized 0–1 (fraction of frame dimensions).
 type BBox struct {
-	X      int `json:"x"`
-	Y      int `json:"y"`
-	Width  int `json:"width"`
-	Height int `json:"height"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
 }
 
 // Hazard represents a detected safety issue.

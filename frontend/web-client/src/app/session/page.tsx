@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useArgusSession } from "@/hooks/useArgusSession";
 import { useCameraContext } from "@/hooks/useCameraContext";
 import { useWakeWord } from "@/hooks/useWakeWord";
@@ -13,6 +13,7 @@ import type { CameraContext } from "@/lib/cameraContext";
 
 export default function SessionPage() {
   const [inspectionMode, setInspectionMode] = useState("construction");
+  const [overlaysVisible, setOverlaysVisible] = useState(true);
   const session = useArgusSession();
   const { context, detecting } = useCameraContext();
   const [manualContext, setManualContext] = useState<CameraContext | null>(null);
@@ -28,6 +29,16 @@ export default function SessionPage() {
   }, [session, inspectionMode]);
 
   useWakeWord({ onWake: handleWake, word: "argus" });
+
+  // Toggle overlays with "O" key (non-AR modes)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement) return;
+      if (e.key === "o") setOverlaysVisible((v) => !v);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const activeContext = manualContext ?? context;
 
@@ -56,6 +67,7 @@ export default function SessionPage() {
         session={session}
         mode={inspectionMode}
         onModeChange={handleModeChange}
+        overlaysVisible={overlaysVisible}
       />
     );
   }
@@ -70,6 +82,7 @@ export default function SessionPage() {
       session={session}
       mode={inspectionMode}
       onModeChange={handleModeChange}
+      overlaysVisible={overlaysVisible}
     />
   );
 }

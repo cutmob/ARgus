@@ -563,6 +563,32 @@ func (c *Controller) toolHighlightHazard(sessionID string, args map[string]any) 
 		Color:    color,
 	}
 
+	// Parse Gemini box_2d [ymin, xmin, ymax, xmax] (0-1000) → normalized 0-1
+	if raw, ok := args["box_2d"]; ok {
+		if arr, ok := raw.([]any); ok && len(arr) >= 4 {
+			toF := func(v any) float64 {
+				switch n := v.(type) {
+				case float64:
+					return n
+				case int:
+					return float64(n)
+				default:
+					return 0
+				}
+			}
+			ymin := toF(arr[0]) / 1000.0
+			xmin := toF(arr[1]) / 1000.0
+			ymax := toF(arr[2]) / 1000.0
+			xmax := toF(arr[3]) / 1000.0
+			overlay.BBox = &types.BBox{
+				X:      xmin,
+				Y:      ymin,
+				Width:  xmax - xmin,
+				Height: ymax - ymin,
+			}
+		}
+	}
+
 	if c.onResponse != nil {
 		c.onResponse(sessionID, &AgentResponse{
 			Type:     "overlay",

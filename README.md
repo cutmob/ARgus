@@ -6,6 +6,36 @@ Built for the **Gemini Live Agent Challenge** · Category: **Live Agents**
 
 ---
 
+## How It Works
+
+1. Open ARGUS on any device — phone, desktop, or AR headset. The interface auto-configures for your environment.
+2. Select an inspection module (or let ARGUS detect the context automatically).
+3. Say **"argus"** or tap **Inspect** to begin. ARGUS opens a persistent bidirectional stream to Gemini Live.
+4. Point the camera. ARGUS streams frames and audio continuously, reasoning against the active rule set in real time.
+5. Hazards are announced aloud, annotated on screen, and logged to the session. Ask questions, redirect the camera, switch modes — all by voice.
+6. Say **"report"** when done. ARGUS generates a structured inspection report with every finding, timestamp, camera ID, and spatial location.
+
+---
+
+## Use Cases
+
+**1. Pre-shift construction site walkthrough**
+A site supervisor puts on AR glasses and walks the perimeter before crews arrive. ARGUS watches through the camera, calls out a missing fall-arrest anchor on scaffold level 3, flags an unsecured load on the materials hoist, and logs both with timestamps. The supervisor never stops walking or touches a screen.
+
+**2. Fleet pre-trip inspection**
+A truck driver holds up their phone and slowly pans around the vehicle. ARGUS checks tire sidewalls, brake hoses, glad-hand seals, USDOT markings, and the CVSA decal — 45 rules in seconds. It speaks "left rear tire sidewall shows a visible bulge, critical severity" and flags it in the report before the driver reaches the cab door.
+
+**3. Hospital compliance monitoring via fixed CCTV**
+A facilities team connects three corridor cameras to the CCTV interface. ARGUS monitors all feeds simultaneously, alerting when a fire door is propped open, when a crash cart is blocking an egress path, or when a medical gas cylinder is unsecured — without any human watching the screens.
+
+**4. Restaurant kitchen health inspection**
+An environmental health officer opens ARGUS on their phone, selects the `kitchen` module, and walks the line. ARGUS flags a sanitiser bucket below required concentration, a cutting board stored above raw meat, and a missing date label on a prep container — each with the applicable FDA Food Code citation spoken aloud and captured in the report.
+
+**5. School security sweep**
+A resource officer does a morning walkthrough with the `school` module active. ARGUS watches for unattended bags near exits, propped exterior doors, unsecured equipment that could serve as a blunt weapon, and any object matching firearm profile — flagging anomalies immediately and logging location and timestamp for the incident record.
+
+---
+
 ## The Problem
 
 Safety inspections are slow, manual, and reactive. An inspector walks a site, documents what they see, and produces a report hours later. By then, the window to prevent an incident has closed.
@@ -38,7 +68,7 @@ ARGUS detects the device and environment on load and renders one of three purpos
 
 **CCTV** — Multi-feed 2×2 grid with a sidebar showing risk level, hazard log, mode selector, and keyboard shortcuts. Designed for fixed monitoring stations.
 
-**AR / Headset** — Minimal corner HUD with hazard count and connection state. Ring overlays drawn directly over the camera feed. Voice-first; the inspect button appears only when voice is disabled.
+**AR / Headset** — Completely invisible UI. The only visual element is a tiny indicator in the top-left corner: a spinning arc while processing, audio bars while speaking, nothing while idle. No dashboard, no buttons. The wearer controls everything by voice — the display is pure camera passthrough.
 
 ---
 

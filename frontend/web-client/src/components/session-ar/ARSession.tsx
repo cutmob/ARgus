@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useVoiceCommands } from "@/hooks/useVoiceCommands";
 import { speakResponse } from "@/lib/tts";
 import { ArgusIndicator } from "@/components/ArgusIndicator";
+import { HazardOverlay } from "@/components/HazardOverlay";
 import type { Hazard, Overlay } from "@/lib/types";
 
 interface ARSessionProps {
@@ -34,6 +35,7 @@ interface ARSessionProps {
 export function ARSession({ session, mode }: ARSessionProps) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [overlaysVisible, setOverlaysVisible] = useState(false);
 
   const indicatorState = session.speaking
     ? "speaking"
@@ -82,6 +84,9 @@ export function ARSession({ session, mode }: ARSessionProps) {
       } else if (t.includes("report")) {
         session.generateReport();
         speakResponse("Generating report.");
+      } else if (t.includes("overlay") || t.includes("show") || t.includes("hide")) {
+        setOverlaysVisible((v) => !v);
+        speakResponse(overlaysVisible ? "Overlays hidden." : "Overlays visible.");
       } else if (t.includes("status")) {
         const n = session.hazards.length;
         speakResponse(
@@ -106,8 +111,9 @@ export function ARSession({ session, mode }: ARSessionProps) {
       />
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* The ONLY visible UI: tiny indicator, top-left corner.
-          Returns null when idle — completely invisible. */}
+      <HazardOverlay overlays={session.overlays} visible={overlaysVisible} />
+
+      {/* Tiny indicator — returns null when idle */}
       <div className="absolute top-4 left-4 z-20">
         <ArgusIndicator state={indicatorState} />
       </div>
