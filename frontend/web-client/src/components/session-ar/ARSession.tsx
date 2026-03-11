@@ -4,7 +4,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { useVoiceCommands } from "@/hooks/useVoiceCommands";
 import { speakResponse } from "@/lib/tts";
 import { ArgusIndicator } from "@/components/ArgusIndicator";
-import { HazardOverlay } from "@/components/HazardOverlay";
+import { HazardOverlay, type GlassMode } from "@/components/HazardOverlay";
 import type { Hazard, Overlay } from "@/lib/types";
 
 interface ARSessionProps {
@@ -36,6 +36,7 @@ export function ARSession({ session, mode }: ARSessionProps) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [overlaysVisible, setOverlaysVisible] = useState(false);
+  const [glassMode, setGlassMode] = useState<GlassMode>("dark");
 
   const indicatorState = session.speaking
     ? "speaking"
@@ -113,6 +114,12 @@ export function ARSession({ session, mode }: ARSessionProps) {
       } else if (t.includes("overlay") || t.includes("show") || t.includes("hide")) {
         setOverlaysVisible((v) => !v);
         speakResponse(overlaysVisible ? "Overlays hidden." : "Overlays visible.");
+      } else if (t.includes("light") || t.includes("bright")) {
+        setGlassMode("light");
+        speakResponse("Light glass.");
+      } else if (t.includes("dark")) {
+        setGlassMode("dark");
+        speakResponse("Dark glass.");
       } else if (t.includes("status")) {
         const n = session.hazards.length;
         speakResponse(
@@ -137,7 +144,7 @@ export function ARSession({ session, mode }: ARSessionProps) {
       />
       <canvas ref={canvasRef} className="hidden" />
 
-      <HazardOverlay overlays={session.overlays} visible={overlaysVisible} />
+      <HazardOverlay overlays={session.overlays} visible={overlaysVisible} glassMode={glassMode} />
 
       {/* Tiny indicator + context label — both invisible when truly idle */}
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">

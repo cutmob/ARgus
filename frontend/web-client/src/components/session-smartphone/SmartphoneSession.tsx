@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CameraView } from "@/components/CameraView";
 import { ArgusIndicator } from "@/components/ArgusIndicator";
 import { INSPECTION_MODES, modeLabel } from "@/lib/modes";
+import type { GlassMode } from "@/components/HazardOverlay";
 import type { Hazard, Overlay } from "@/lib/types";
 
 interface SmartphoneSessionProps {
@@ -34,6 +35,7 @@ const RISK_COLOR: Record<string, string> = {
 
 export function SmartphoneSession({ session, mode, onModeChange, overlaysVisible = true }: SmartphoneSessionProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [glassMode, setGlassMode] = useState<GlassMode>("dark");
   const indicatorState = session.speaking ? "speaking" : session.processing ? "processing" : "idle";
   const riskColor = RISK_COLOR[session.riskLevel] ?? "#4a4a4a";
 
@@ -41,7 +43,7 @@ export function SmartphoneSession({ session, mode, onModeChange, overlaysVisible
     <div className="h-screen w-screen bg-black relative overflow-hidden">
       {/* Camera */}
       <div className="absolute inset-0">
-        <CameraView overlays={session.overlays} overlaysVisible={overlaysVisible} onFrame={session.sendFrame} />
+        <CameraView overlays={session.overlays} overlaysVisible={overlaysVisible} glassMode={glassMode} onFrame={session.sendFrame} />
       </div>
 
       {/* Top status */}
@@ -121,6 +123,14 @@ export function SmartphoneSession({ session, mode, onModeChange, overlaysVisible
                 style={{ border: "1px solid #1c1c1c", color: "#4a4a4a" }}
               >
                 REPORT
+              </button>
+              <button
+                onClick={() => setGlassMode((m) => m === "dark" ? "light" : "dark")}
+                className="font-display text-xs font-medium px-4 tracking-[0.15em] uppercase transition-colors duration-100"
+                style={{ border: "1px solid #1c1c1c", color: "#4a4a4a" }}
+                title="Toggle overlay style"
+              >
+                {glassMode === "dark" ? "◑" : "○"}
               </button>
             </div>
 

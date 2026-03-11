@@ -1,16 +1,17 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { HazardOverlay } from "@/components/HazardOverlay";
+import { HazardOverlay, type GlassMode } from "@/components/HazardOverlay";
 import type { Overlay } from "@/lib/types";
 
 interface CameraViewProps {
   overlays: Overlay[];
   overlaysVisible?: boolean;
+  glassMode?: GlassMode;
   onFrame: (data: Blob) => void;
 }
 
-export function CameraView({ overlays, overlaysVisible = true, onFrame }: CameraViewProps) {
+export function CameraView({ overlays, overlaysVisible = true, glassMode = "dark", onFrame }: CameraViewProps) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -75,7 +76,7 @@ export function CameraView({ overlays, overlaysVisible = true, onFrame }: Camera
       />
       <canvas ref={canvasRef} className="hidden" />
 
-      <HazardOverlay overlays={overlays} visible={overlaysVisible} />
+      <HazardOverlay overlays={overlays} visible={overlaysVisible} glassMode={glassMode} />
 
       <div className="feed-corner feed-corner-tl" />
       <div className="feed-corner feed-corner-tr" />
