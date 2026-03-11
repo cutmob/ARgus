@@ -46,56 +46,48 @@ ARGUS detects the device and environment on load and renders one of three purpos
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  CLIENT  —  Next.js 14 · TypeScript · Tailwind                  │
-│                                                                  │
-│   ┌─────────────┐    ┌─────────────┐    ┌────────────────────┐  │
-│   │ Smartphone  │    │    CCTV     │    │   AR / Headset     │  │
-│   │  Session    │    │   Session   │    │     Session        │  │
-│   └──────┬──────┘    └──────┬──────┘    └─────────┬──────────┘  │
-│          └─────────────────┴─────────────────────┘             │
-│                              │                                   │
-│            useArgusSession  ─┤  useWakeWord · useVoiceCommands  │
-│                              │                                   │
-│                  WebSocket  wss://                               │
-│          JPEG frames  ·  PCM 16kHz  ·  control events           │
-└──────────────────────────────┬───────────────────────────────────┘
-                               │
-               ┌───────────────▼──────────────┐
-               │  Google Cloud Run             │
-               │  Go 1.24                      │
-               │                              │
-               │   WebSocket Server           │
-               │         │                    │
-               │   Agent Controller           │
-               │    ├── Vision Pipeline       │
-               │    │    ├── Frame Sampler    │
-               │    │    └── Event Engine     │
-               │    ├── Rule Engine           │
-               │    │    └── Module Loader    │
-               │    ├── Intent Parser         │
-               │    └── Report Builder        │
-               │         ├── JSON Exporter    │
-               │         └── PDF Exporter     │
-               └───────────────┬──────────────┘
-                               │  google.golang.org/genai SDK
-                               │
-               ┌───────────────▼──────────────┐
-               │  Gemini Live API              │
-               │  gemini-2.5-flash-            │
-               │  native-audio-preview         │
-               │                              │
-               │  inbound:  audio · frames     │
-               │  outbound: audio · text ·     │
-               │            tool calls         │
-               └──────────────────────────────┘
+```mermaid
+graph TB
+    subgraph FE ["Frontend — Next.js 14 · TypeScript"]
+        direction TB
+        SM[Smartphone Session]
+        CV[CCTV Session]
+        AR[AR / Headset Session]
+        SM & CV & AR --> HS[useArgusSession]
+        HS --- WW[useWakeWord\nsay 'argus' to activate]
+        HS --- VC[useVoiceCommands\ninspect · stop · status · report]
+    end
 
-Google Cloud services
-  Cloud Run          hosting — Go HTTP + WebSocket server
-  Cloud Build        CI/CD build pipeline  (cloudbuild.yaml)
-  Artifact Registry  Docker image storage
-  Secret Manager     GEMINI_API_KEY at rest, injected at runtime
+    HS -->|"WebSocket wss://\nJPEG frames · PCM 16 kHz · control events"| WS
+
+    subgraph CR ["Google Cloud Run — Go 1.24"]
+        direction TB
+        WS[WebSocket Server]
+        WS --> AC[Agent Controller]
+        AC --> VP[Vision Pipeline\nFrame Sampler · Event Engine]
+        AC --> RE[Rule Engine\nModule Loader]
+        AC --> IP[Intent Parser]
+        AC --> RB[Report Builder\nJSON · PDF]
+    end
+
+    AC -->|"google.golang.org/genai SDK\nbidirectional stream"| GL
+
+    subgraph GM ["Gemini Live API"]
+        GL["gemini-2.5-flash-native-audio-preview\n─────────────────────────────\ninbound  → audio stream · JPEG frames\noutbound → audio · text · tool calls"]
+    end
+
+    subgraph GCP ["Google Cloud Platform"]
+        CB[Cloud Build\ncloudbuild.yaml]
+        AG[Artifact Registry\nDocker images]
+        SEC[Secret Manager\nGEMINI_API_KEY]
+        CB --> AG --> CR
+        SEC -->|injected at runtime| CR
+    end
+
+    style FE fill:#0a0a0a,stroke:#2a2a2a,color:#f0f0f0
+    style CR fill:#0a0a0a,stroke:#2a2a2a,color:#f0f0f0
+    style GM fill:#0a0a0a,stroke:#FF5F1F,color:#f0f0f0
+    style GCP fill:#050505,stroke:#1a1a1a,color:#7a7a7a
 ```
 
 ---
