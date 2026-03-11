@@ -43,6 +43,19 @@ export function ARSession({ session, mode }: ARSessionProps) {
     ? "processing"
     : "idle";
 
+  // Context-aware micro-label shown beside the indicator
+  const indicatorLabel = session.speaking
+    ? null                                          // voice is the message
+    : session.processing && session.isInspecting
+    ? "scanning"
+    : session.processing
+    ? "thinking"
+    : session.isInspecting && session.hazards.length > 0
+    ? `${session.hazards.length} flagged`
+    : session.isInspecting
+    ? "watching"
+    : null;                                         // idle + not inspecting → invisible
+
   /* ── Camera stream ── */
   useEffect(() => {
     let stream: MediaStream;
@@ -56,18 +69,31 @@ export function ARSession({ session, mode }: ARSessionProps) {
     return () => stream?.getTracks().forEach((t) => t.stop());
   }, []);
 
-  /* ── Frame capture — 500 ms interval while inspecting ── */
+  /* ── Frame capture — 1fps while inspecting, object-cover aligned ── */
   useEffect(() => {
     if (!session.isInspecting) return;
     const id = setInterval(() => {
       const video  = videoRef.current;
       const canvas = canvasRef.current;
       if (!canvas || !video || video.readyState < 2) return;
-      canvas.width  = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext("2d")?.drawImage(video, 0, 0);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const el   = video.getBoundingClientRect();
+      const elW  = el.width;
+      const elH  = el.height;
+      const vW   = video.videoWidth;
+      const vH   = video.videoHeight;
+      if (!vW || !vH || !elW || !elH) return;
+      const scale = Math.max(elW / vW, elH / vH);
+      const srcW  = elW / scale;
+      const srcH  = elH / scale;
+      const srcX  = (vW - srcW) / 2;
+      const srcY  = (vH - srcH) / 2;
+      canvas.width  = Math.round(srcW);
+      canvas.height = Math.round(srcH);
+      ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
       canvas.toBlob((blob) => blob && session.sendFrame(blob), "image/jpeg", 0.7);
-    }, 500);
+    }, 1000);
     return () => clearInterval(id);
   }, [session.isInspecting, session.sendFrame]);
 
@@ -113,9 +139,17 @@ export function ARSession({ session, mode }: ARSessionProps) {
 
       <HazardOverlay overlays={session.overlays} visible={overlaysVisible} />
 
-      {/* Tiny indicator — returns null when idle */}
-      <div className="absolute top-4 left-4 z-20">
+      {/* Tiny indicator + context label — both invisible when truly idle */}
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         <ArgusIndicator state={indicatorState} />
+        {indicatorLabel && (
+          <span
+            className="font-mono text-[9px] tracking-[0.2em] uppercase"
+            style={{ color: "rgba(255,255,255,0.25)" }}
+          >
+            {indicatorLabel}
+          </span>
+        )}
       </div>
     </div>
   );
