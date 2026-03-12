@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { HazardOverlay, type GlassMode } from "@/components/HazardOverlay";
 import type { Overlay } from "@/lib/types";
 
@@ -22,6 +22,8 @@ export function CameraView({
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
 
   useEffect(() => {
     async function startCamera() {
@@ -57,6 +59,45 @@ export function CameraView({
       }
     };
   }, [videoSource]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleLoadedMetadata = () => {
+      if (!isNaN(video.duration)) {
+        setDuration(video.duration);
+      }
+    };
+    const handleTimeUpdate = () => {
+      setCurrentTime(video.currentTime);
+    };
+
+    video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("timeupdate", handleTimeUpdate);
+
+    return () => {
+      video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("timeupdate", handleTimeUpdate);
+    };
+  }, [videoSource]);
+
+  const handleSeek = (value: number) => {
+    const video = videoRef.current;
+    if (!video || !duration) return;
+    const clamped = Math.max(0, Math.min(duration, value));
+    video.currentTime = clamped;
+    setCurrentTime(clamped);
+  };
+
+  const formatTime = (t: number) => {
+    if (!isFinite(t) || t <= 0) return "0:00";
+    const minutes = Math.floor(t / 60);
+    const seconds = Math.floor(t % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${minutes}:${seconds}`;
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -115,6 +156,27 @@ export function CameraView({
           LIVE
         </span>
       </div>
+
+      {/* Scrubber for uploaded video */}
+      {videoSource && duration > 0 && (
+        <div className="absolute bottom-0 left-0 right-0 px-3 pb-2 pt-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center gap-2">
+          <span className="font-mono text-[10px] text-white/40 w-10 tabular-nums">
+            {formatTime(currentTime)}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={currentTime}
+            onChange={(e) => handleSeek(Number(e.target.value))}
+            className="w-full accent-[#FF5F1F]"
+          />
+          <span className="font-mono text-[10px] text-white/40 w-10 text-right tabular-nums">
+            {formatTime(duration)}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/cutmob/argus/internal/agent"
 	"github.com/cutmob/argus/internal/gemini"
 	"github.com/cutmob/argus/internal/inspection"
@@ -26,6 +28,9 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
+	// Load environment variables from .env if present (for local dev / Windows)
+	_ = godotenv.Load()
+
 	cfg := loadConfig()
 	validateConfig(cfg)
 
@@ -39,7 +44,7 @@ func main() {
 	}
 
 	// Core services
-	sessionMgr := session.NewManager()
+	sessionMgr := session.NewManager(cfg.MemoryFile)
 	moduleLoader := inspection.NewModuleLoader(cfg.ModulesDir)
 	ruleEngine := inspection.NewRuleEngine(moduleLoader)
 	hazardDetector := inspection.NewHazardDetector(ruleEngine)
@@ -109,6 +114,12 @@ func main() {
 				if mode, ok := payload["mode"].(string); ok {
 					intent.Mode = mode
 				}
+				if cameraID, ok := payload["camera_id"].(string); ok && cameraID != "" {
+					intent.Parameters["camera_id"] = cameraID
+				}
+				if threshold, ok := payload["alert_threshold"].(string); ok && threshold != "" {
+					intent.Parameters["alert_threshold"] = threshold
+				}
 			case "stop_inspection":
 				intent.Type = types.IntentStopInspection
 			case "switch_mode":
@@ -123,6 +134,21 @@ func main() {
 				}
 			case "operator_actions":
 				intent.Type = types.IntentOperatorActions
+			case "update_preferences":
+				preferences := make(map[string]string)
+				for key, value := range payload {
+					if s, ok := value.(string); ok {
+						preferences[key] = s
+					}
+				}
+				resp := agentCtrl.UpdateSessionPreferences(sessionID, preferences)
+				if resp != nil {
+					msg := streaming.AgentResponseToWSMessage(sessionID, resp)
+					if err := wsServer.Send(sessionID, msg); err != nil {
+						slog.Error("failed to send preference response", "session_id", sessionID, "error", err)
+					}
+				}
+				return
 			case "voice_command":
 				if text, ok := payload["text"].(string); ok && text != "" {
 					resp := agentCtrl.HandleRawText(sessionID, text)
@@ -216,6 +242,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 type Config struct {
 	Port       string
 	ModulesDir string
+	MemoryFile string
 	GeminiKey  string
 	DemoTokens map[string]bool
 	Vision     VisionConfig
@@ -234,6 +261,10 @@ func loadConfig() Config {
 	if modulesDir == "" {
 		modulesDir = "./modules"
 	}
+	memoryFile := os.Getenv("ARGUS_MEMORY_FILE")
+	if memoryFile == "" {
+		memoryFile = "./data/environment_memory.json"
+	}
 	// DEMO_TOKENS is a comma-separated list of valid access codes, e.g. "ARGUS-A1,ARGUS-B2"
 	demoTokens := map[string]bool{}
 	if raw := os.Getenv("DEMO_TOKENS"); raw != "" {
@@ -247,6 +278,7 @@ func loadConfig() Config {
 	return Config{
 		Port:       port,
 		ModulesDir: modulesDir,
+		MemoryFile: memoryFile,
 		GeminiKey:  os.Getenv("GEMINI_API_KEY"),
 		DemoTokens: demoTokens,
 		Vision: VisionConfig{

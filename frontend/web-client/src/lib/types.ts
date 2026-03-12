@@ -1,8 +1,11 @@
+export type Severity = "low" | "medium" | "high" | "critical";
+export type AlertThreshold = "off" | Severity;
+
 export interface Hazard {
   id: string;
   rule_id: string;
   description: string;
-  severity: "low" | "medium" | "high" | "critical";
+  severity: Severity;
   confidence: number;
   occurrences?: number;
   first_seen_at?: string;

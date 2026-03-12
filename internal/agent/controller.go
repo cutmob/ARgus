@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -161,6 +162,9 @@ func (c *Controller) startInspection(sessionID string, intent types.AgentIntent)
 	if intent.Parameters != nil {
 		cameraID = intent.Parameters["camera_id"]
 	}
+	if intent.Parameters == nil {
+		intent.Parameters = make(map[string]string)
+	}
 
 	sess := c.sessions.Create(session.SessionConfig{
 		SessionID:      sessionID,
@@ -173,25 +177,19 @@ func (c *Controller) startInspection(sessionID string, intent types.AgentIntent)
 
 	c.rules.LoadRules(sessionID, mod.Rules)
 
-	// Build system prompt from module + rules
-	systemPrompt := mod.SystemPrompt
-	if systemPrompt == "" {
-		systemPrompt = "You are ARGUS, an AI safety inspection copilot. Analyze the environment for hazards."
-	}
-
-	systemPrompt += "\n\nSpatial & temporal awareness:" +
-		"\n- Each frame arrives with a timestamp and camera ID in the format [FRAME <ISO8601> | camera:<id>]." +
-		"\n- Use timestamps to track how long hazards persist and note elapsed time in alerts." +
-		"\n- Use the camera ID to distinguish between multiple feeds and reference which camera spotted an issue." +
-		"\n- Describe hazard locations spatially (e.g. \"left side of frame\", \"near the exit door\", \"overhead\", \"at ground level\")." +
-		"\n- When reporting, include the approximate location within the scene and which camera captured it." +
-		"\n\nActive inspection mode: " + mode +
-		"\nCamera: " + cameraID +
-		"\nSession started: " + time.Now().Format("2006-01-02T15:04:05Z07:00") +
-		"\nRules loaded: " + itoa(len(mod.Rules))
-	for i, r := range mod.Rules {
-		systemPrompt += "\n" + itoa(i+1) + ". [" + string(r.Severity) + "] " + r.Description
-	}
+	runtimeContext := strings.Join([]string{
+		"Session started: " + time.Now().Format("2006-01-02T15:04:05Z07:00"),
+		"Rules loaded: " + itoa(len(mod.Rules)),
+		c.rules.BuildPromptContext(sessionID),
+	}, "\n")
+	systemPrompt := geminiPkg.BuildInspectionPrompt(
+		mod.SystemPrompt,
+		mode,
+		cameraID,
+		strings.TrimSpace(intent.Parameters["alert_threshold"]),
+		runtimeContext,
+		c.buildEnvironmentFamiliarity(cameraID),
+	)
 
 	// Start Gemini Live session for real-time bidirectional streaming
 	ctx := context.Background()
@@ -226,6 +224,30 @@ func (c *Controller) startInspection(sessionID string, intent types.AgentIntent)
 		"Starting " + mode + " inspection. I have " +
 			itoa(len(mod.Rules)) + " rules loaded. Point the camera and I'll begin analyzing.",
 	)
+}
+
+func (c *Controller) UpdateSessionPreferences(sessionID string, prefs map[string]string) *AgentResponse {
+	if len(prefs) == 0 {
+		return nil
+	}
+	if !c.sessions.UpdateMetadata(sessionID, prefs) {
+		return nil
+	}
+
+	c.mu.RLock()
+	ls, hasLive := c.liveSessions[sessionID]
+	c.mu.RUnlock()
+
+	if hasLive && ls.IsActive() {
+		parts := make([]string, 0, len(prefs))
+		if threshold := strings.TrimSpace(prefs["alert_threshold"]); threshold != "" {
+			parts = append(parts, "speak proactive findings only for "+threshold+" severity and above while keeping conversational replies enabled")
+		}
+		if len(parts) > 0 {
+			_ = ls.SendText("Operator preferences updated: " + strings.Join(parts, ". "))
+		}
+	}
+	return nil
 }
 
 func (c *Controller) stopInspection(sessionID string) *AgentResponse {
@@ -469,12 +491,98 @@ func (c *Controller) processGeminiResponse(sessionID string, resp *types.GeminiR
 		c.sessions.AddHazard(sessionID, h)
 	}
 
-	if c.hazards.ShouldAlert(resp.Hazards) && resp.VoiceResponse != "" {
-		alertResp := c.responseMgr.HazardAlert(resp.VoiceResponse, resp.Hazards)
-		if c.onResponse != nil {
-			c.onResponse(sessionID, alertResp)
+	if c.onResponse == nil {
+		return
+	}
+
+	text := strings.TrimSpace(resp.TextResponse)
+	voice := strings.TrimSpace(resp.VoiceResponse)
+	message := voice
+	if message == "" {
+		message = text
+	}
+
+	if len(resp.Hazards) > 0 {
+		alertResp := c.responseMgr.HazardAlert(message, resp.Hazards)
+		if !c.shouldSpeakFindingsForSession(sessionID, resp.Hazards) {
+			alertResp.Voice = ""
+		}
+		c.onResponse(sessionID, alertResp)
+		return
+	}
+
+	if message != "" {
+		c.onResponse(sessionID, c.responseMgr.Voice(message))
+	}
+}
+
+func (c *Controller) shouldSpeakFindingsForSession(sessionID string, hazards []types.Hazard) bool {
+	sess, ok := c.sessions.Get(sessionID)
+	if !ok || sess == nil {
+		return c.hazards.ShouldAlert(hazards)
+	}
+	threshold := "high"
+	if sess.Metadata != nil && strings.TrimSpace(sess.Metadata["alert_threshold"]) != "" {
+		threshold = strings.TrimSpace(sess.Metadata["alert_threshold"])
+	}
+	return hazardsMeetThreshold(hazards, threshold)
+}
+
+func hazardsMeetThreshold(hazards []types.Hazard, threshold string) bool {
+	if strings.EqualFold(threshold, "off") {
+		return false
+	}
+	minRank := thresholdRank(threshold)
+	for _, hazard := range hazards {
+		if thresholdRank(string(hazard.Severity)) >= minRank {
+			return true
 		}
 	}
+	return false
+}
+
+func thresholdRank(value string) int {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "low":
+		return 1
+	case "medium":
+		return 2
+	case "high":
+		return 3
+	case "critical":
+		return 4
+	default:
+		return 3
+	}
+}
+
+func (c *Controller) buildEnvironmentFamiliarity(cameraID string) string {
+	if strings.TrimSpace(cameraID) == "" {
+		return ""
+	}
+	profile, ok := c.sessions.GetEnvironmentProfile(cameraID)
+	if !ok || profile == nil {
+		return ""
+	}
+	parts := []string{
+		"Camera " + cameraID + " has " + itoa(profile.InspectionCount) + " prior inspection session(s) in this runtime.",
+	}
+	if profile.LastInspectionMode != "" {
+		parts = append(parts, "Most recent inspection mode: "+profile.LastInspectionMode+".")
+	}
+	if len(profile.FamiliarHazards) > 0 {
+		limit := len(profile.FamiliarHazards)
+		if limit > 3 {
+			limit = 3
+		}
+		hazardParts := make([]string, 0, limit)
+		for i := 0; i < limit; i++ {
+			h := profile.FamiliarHazards[i]
+			hazardParts = append(hazardParts, h.Description+" ("+itoa(h.Count)+"x, highest "+string(h.HighestSeverity)+")")
+		}
+		parts = append(parts, "Recurring environment patterns: "+strings.Join(hazardParts, "; ")+".")
+	}
+	return strings.Join(parts, "\n")
 }
 
 // --- Gemini Live session callbacks ---

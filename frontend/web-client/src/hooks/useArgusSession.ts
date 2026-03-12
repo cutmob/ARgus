@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { speakResponse } from "@/lib/tts";
-import type { ActionCard, Hazard, Overlay } from "@/lib/types";
+import type { ActionCard, AlertThreshold, Hazard, Overlay, Severity } from "@/lib/types";
 
 interface WebSocketMessage {
   type: string;
@@ -29,6 +29,24 @@ interface SessionAgentResponse {
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
+const SEVERITY_RANK: Record<Severity, number> = {
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
+const ALERT_THRESHOLD_RANK: Record<AlertThreshold, number> = {
+  off: Number.POSITIVE_INFINITY,
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
+
+function shouldSpeakFinding(hazards: Hazard[], threshold: AlertThreshold): boolean {
+  if (threshold === "off") return false;
+  return hazards.some((hazard) => SEVERITY_RANK[hazard.severity] >= ALERT_THRESHOLD_RANK[threshold]);
+}
 
 function getDemoToken(): string {
   return typeof window !== "undefined"
@@ -59,12 +77,15 @@ export function useArgusSession() {
   const [processing, setProcessing]     = useState(false);
   const [speaking, setSpeaking]         = useState(false);
   const [voiceOutputEnabled, setVoiceOutputEnabled] = useState(true);
+  const [alertThreshold, setAlertThresholdState] = useState<AlertThreshold>("high");
   const [lastAgentResponse, setLastAgentResponse] = useState<SessionAgentResponse | null>(null);
 
   const wsRef          = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout>();
   const voiceOutputEnabledRef = useRef(true);
+  const alertThresholdRef = useRef<AlertThreshold>("high");
   voiceOutputEnabledRef.current = voiceOutputEnabled;
+  alertThresholdRef.current = alertThreshold;
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -155,6 +176,7 @@ export function useArgusSession() {
 
       case "agent_response": {
         const data = msg.payload as AgentResponsePayload;
+        const hazardPayload = Array.isArray(data.hazards) ? data.hazards : [];
         if (Array.isArray(data.hazards) && data.hazards.length > 0) {
           setHazards((prev) => {
             const next = [...prev];
@@ -182,7 +204,9 @@ export function useArgusSession() {
           });
         }
         const spoken = data.voice || data.text;
-        if (spoken && voiceOutputEnabledRef.current) {
+        const findingsAllowed =
+          hazardPayload.length === 0 || shouldSpeakFinding(hazardPayload, alertThresholdRef.current);
+        if (spoken && voiceOutputEnabledRef.current && findingsAllowed) {
           setSpeaking(true);
           speakResponse(spoken, () => setSpeaking(false));
         } else if (spoken) {
@@ -238,7 +262,11 @@ export function useArgusSession() {
 
   const startInspection = useCallback(
     (mode: string) => {
-      sendCommand("start_inspection", { mode });
+      sendCommand("start_inspection", {
+        mode,
+        camera_id: generateCameraId(),
+        alert_threshold: alertThresholdRef.current,
+      });
       setIsInspecting(true);
       setHazards([]);
       setOverlays([]);
@@ -274,6 +302,27 @@ export function useArgusSession() {
     [sendCommand]
   );
 
+  const updatePreferences = useCallback(
+    (payload: Record<string, unknown>) => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+      wsRef.current.send(JSON.stringify({
+        type: "update_preferences",
+        session_id: sessionId,
+        payload,
+        timestamp: new Date().toISOString(),
+      }));
+    },
+    [sessionId]
+  );
+
+  const setAlertThreshold = useCallback(
+    (threshold: AlertThreshold) => {
+      setAlertThresholdState(threshold);
+      updatePreferences({ alert_threshold: threshold });
+    },
+    [updatePreferences]
+  );
+
   const clearHazards = useCallback(() => {
     setHazards([]);
     setOverlays([]);
@@ -298,6 +347,7 @@ export function useArgusSession() {
     processing,
     speaking,
     voiceOutputEnabled,
+    alertThreshold,
     lastAgentResponse,
     sendFrame,
     startInspection,
@@ -308,6 +358,8 @@ export function useArgusSession() {
     sendNaturalLanguageCommand,
     clearHazards,
     setVoiceOutputEnabled,
+    setAlertThreshold,
+    updatePreferences,
     resetAuth,
   };
 }

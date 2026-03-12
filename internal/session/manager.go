@@ -15,12 +15,24 @@ import (
 type Manager struct {
 	mu       sync.RWMutex
 	sessions map[string]*Session
+	profiles map[string]*EnvironmentProfile
+	store    *memoryStore
 }
 
-func NewManager() *Manager {
-	return &Manager{
+func NewManager(memoryFilePath string) *Manager {
+	mgr := &Manager{
 		sessions: make(map[string]*Session),
+		profiles: make(map[string]*EnvironmentProfile),
+		store:    newMemoryStore(memoryFilePath),
 	}
+	if mgr.store != nil {
+		if profiles, err := mgr.store.load(); err == nil {
+			mgr.profiles = profiles
+		} else {
+			slog.Warn("failed to load environment memory", "error", err, "path", memoryFilePath)
+		}
+	}
+	return mgr
 }
 
 // Create initializes a new inspection session.
@@ -42,6 +54,13 @@ func (m *Manager) Create(cfg SessionConfig) *Session {
 	}
 
 	m.sessions[s.ID] = s
+	if cfg.CameraID != "" {
+		profile := m.ensureEnvironmentProfileLocked(cfg.CameraID)
+		profile.InspectionCount++
+		profile.LastInspectionMode = cfg.InspectionMode
+		profile.LastUpdated = time.Now()
+		m.persistProfilesLocked()
+	}
 	slog.Info("session created", "id", s.ID, "mode", s.InspectionMode)
 	return s
 }
@@ -145,7 +164,104 @@ func (m *Manager) AddHazard(sessionID string, hazard types.Hazard) {
 			hazard.RiskTrend = "new"
 			s.Hazards = append(s.Hazards, hazard)
 		}
+		cameraID := hazard.CameraID
+		if cameraID == "" {
+			cameraID = s.CameraID
+		}
+		m.recordEnvironmentHazardLocked(cameraID, s.InspectionMode, hazard, now)
 		s.UpdatedAt = time.Now()
+	}
+}
+
+func (m *Manager) UpdateMetadata(sessionID string, updates map[string]string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.sessions[sessionID]
+	if !ok {
+		return false
+	}
+	if s.Metadata == nil {
+		s.Metadata = make(map[string]string)
+	}
+	for key, value := range updates {
+		if value == "" {
+			delete(s.Metadata, key)
+			continue
+		}
+		s.Metadata[key] = value
+	}
+	s.UpdatedAt = time.Now()
+	m.persistProfilesLocked()
+	return true
+}
+
+func (m *Manager) GetEnvironmentProfile(cameraID string) (*EnvironmentProfile, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	profile, ok := m.profiles[cameraID]
+	if !ok {
+		return nil, false
+	}
+	clone := *profile
+	clone.FamiliarHazards = append([]EnvironmentHazardMemory(nil), profile.FamiliarHazards...)
+	return &clone, true
+}
+
+func (m *Manager) ensureEnvironmentProfileLocked(cameraID string) *EnvironmentProfile {
+	profile, ok := m.profiles[cameraID]
+	if ok {
+		return profile
+	}
+	profile = &EnvironmentProfile{
+		CameraID: cameraID,
+	}
+	m.profiles[cameraID] = profile
+	return profile
+}
+
+func (m *Manager) recordEnvironmentHazardLocked(cameraID, mode string, hazard types.Hazard, now time.Time) {
+	if cameraID == "" {
+		return
+	}
+	profile := m.ensureEnvironmentProfileLocked(cameraID)
+	profile.ObservationCount++
+	profile.LastInspectionMode = mode
+	profile.LastUpdated = now
+	description := strings.TrimSpace(hazard.Description)
+	for i := range profile.FamiliarHazards {
+		if strings.EqualFold(profile.FamiliarHazards[i].Description, description) {
+			profile.FamiliarHazards[i].Count++
+			profile.FamiliarHazards[i].LastSeenAt = now
+			if severityRank(hazard.Severity) > severityRank(profile.FamiliarHazards[i].HighestSeverity) {
+				profile.FamiliarHazards[i].HighestSeverity = hazard.Severity
+			}
+			return
+		}
+	}
+	profile.FamiliarHazards = append(profile.FamiliarHazards, EnvironmentHazardMemory{
+		Description:     description,
+		Count:           1,
+		HighestSeverity: hazard.Severity,
+		LastSeenAt:      now,
+	})
+	m.persistProfilesLocked()
+}
+
+func (m *Manager) persistProfilesLocked() {
+	if m.store == nil {
+		return
+	}
+	profiles := make(map[string]*EnvironmentProfile, len(m.profiles))
+	for key, profile := range m.profiles {
+		if profile == nil {
+			continue
+		}
+		clone := *profile
+		clone.FamiliarHazards = append([]EnvironmentHazardMemory(nil), profile.FamiliarHazards...)
+		profiles[key] = &clone
+	}
+	if err := m.store.save(profiles); err != nil {
+		slog.Warn("failed to persist environment memory", "error", err)
 	}
 }
 

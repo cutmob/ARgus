@@ -33,10 +33,12 @@ export function FeedGrid({
   return (
     <div className="grid grid-cols-2 gap-px h-full" style={{ background: "#1c1c1c" }}>
       {FEED_LABELS.map((label, i) => (
-        <button
+        <div
           key={i}
           onClick={() => onSelectFeed(i)}
-          className="relative overflow-hidden bg-black focus:outline-none"
+          className="relative overflow-hidden bg-black cursor-pointer"
+          role="button"
+          tabIndex={0}
         >
           {/* Active: top orange line */}
           {activeFeed === i && (
@@ -66,7 +68,7 @@ export function FeedGrid({
               {label}
             </span>
           </div>
-        </button>
+        </div>
       ))}
     </div>
   );

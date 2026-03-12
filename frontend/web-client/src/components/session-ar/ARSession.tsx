@@ -56,7 +56,7 @@ export function ARSession({
 }: ARSessionProps) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [overlaysVisible, setOverlaysVisible] = useState(false);
+  const [overlaysVisible, setOverlaysVisible] = useState(Boolean(videoSource));
   const [localGlassMode, setLocalGlassMode] = useState<GlassMode>("dark");
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [micEnabled, setMicEnabled] = useState(true);
@@ -126,6 +126,12 @@ export function ARSession({
         videoRef.current.load();
       }
     };
+  }, [videoSource]);
+
+  useEffect(() => {
+    if (videoSource) {
+      setOverlaysVisible(true);
+    }
   }, [videoSource]);
 
   /* ── Frame capture — 1fps while inspecting, object-cover aligned ── */

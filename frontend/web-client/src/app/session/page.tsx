@@ -13,6 +13,9 @@ import { CCTVSession } from "@/components/session-cctv/CCTVSession";
 import { ARSession } from "@/components/session-ar/ARSession";
 import type { GlassMode } from "@/components/HazardOverlay";
 import type { CameraContext } from "@/lib/cameraContext";
+import type { AlertThreshold } from "@/lib/types";
+
+const ALERT_THRESHOLD_OPTIONS: AlertThreshold[] = ["off", "low", "medium", "high", "critical"];
 
 export default function SessionPage() {
   const [inspectionMode, setInspectionMode] = useState("construction");
@@ -20,12 +23,13 @@ export default function SessionPage() {
   const [overlaysVisible, setOverlaysVisible] = useState(true);
   const [gated, setGated] = useState(true);
   const [controlsOpen, setControlsOpen] = useState(false);
-  const [openSelect, setOpenSelect] = useState<"context" | "mode" | "format" | null>(null);
+  const [openSelect, setOpenSelect] = useState<"context" | "mode" | "format" | "threshold" | null>(null);
   const [reportViewOpen, setReportViewOpen] = useState(false);
   const [reportTile, setReportTile] = useState<{ text: string; at: number } | null>(null);
   const [latestReport, setLatestReport] = useState<{ text: string; reportId?: string; at: number } | null>(null);
   const [cctvVoiceInputEnabled, setCctvVoiceInputEnabled] = useState(false);
   const [cctvVoiceOutputEnabled, setCctvVoiceOutputEnabled] = useState(false);
+  const [alertThreshold, setAlertThreshold] = useState<AlertThreshold>("high");
   const [glassMode, setGlassMode] = useState<GlassMode>("dark");
   const [demoContext, setDemoContext] = useState<CameraContext>("cctv");
   const [videoSource, setVideoSource] = useState<string | null>(null);
@@ -38,6 +42,7 @@ export default function SessionPage() {
     const savedMode = localStorage.getItem("argus_mode");
     const savedContext = localStorage.getItem("argus_context") as CameraContext | null;
     const savedFormat = localStorage.getItem("argus_report_format");
+    const savedAlertThreshold = localStorage.getItem("argus_alert_threshold");
     const savedGlassMode = localStorage.getItem("argus_glass_mode");
     const savedCctvVoiceInput = localStorage.getItem("argus_cctv_voice_input");
     const savedCctvVoiceOutput = localStorage.getItem("argus_cctv_voice_output");
@@ -47,6 +52,15 @@ export default function SessionPage() {
       setManualContext(savedContext);
     }
     if (savedFormat) setReportFormat(savedFormat);
+    if (
+      savedAlertThreshold === "off" ||
+      savedAlertThreshold === "low" ||
+      savedAlertThreshold === "medium" ||
+      savedAlertThreshold === "high" ||
+      savedAlertThreshold === "critical"
+    ) {
+      setAlertThreshold(savedAlertThreshold);
+    }
     if (savedGlassMode === "dark" || savedGlassMode === "light") setGlassMode(savedGlassMode);
     if (savedCctvVoiceInput) setCctvVoiceInputEnabled(savedCctvVoiceInput === "true");
     if (savedCctvVoiceOutput) setCctvVoiceOutputEnabled(savedCctvVoiceOutput === "true");
@@ -123,6 +137,11 @@ export default function SessionPage() {
   }, [activeContext, cctvVoiceOutputEnabled, session]);
 
   useEffect(() => {
+    session.setAlertThreshold(alertThreshold);
+    localStorage.setItem("argus_alert_threshold", alertThreshold);
+  }, [alertThreshold, session.setAlertThreshold]);
+
+  useEffect(() => {
     if (activeContext !== "ar" && activeContext !== "smartphone") return;
     if (!navigator.mediaDevices?.getUserMedia) return;
     navigator.mediaDevices
@@ -193,7 +212,8 @@ export default function SessionPage() {
   };
 
   const controlAnchorClass =
-    activeContext === "cctv" ? "top-12 right-4" : "top-14 right-4";
+    activeContext === "cctv" ? "top-1 left-1/2 -translate-x-1/2" : "top-14 right-4";
+  const controlInnerJustify = activeContext === "cctv" ? "justify-center" : "justify-end";
   const reportPanelTop = controlsOpen ? "11.25rem" : activeContext === "cctv" ? "6rem" : "7rem";
 
   const controlLauncher = (
@@ -206,7 +226,7 @@ export default function SessionPage() {
         onChange={(e) => handleVideoPick(e.target.files?.[0] ?? null)}
       />
 
-      <div className="flex items-center justify-end gap-2">
+      <div className={`flex items-center gap-2 ${controlInnerJustify}`}>
         <button
           onClick={() => (session.isInspecting ? stopDemo() : startDemo())}
           className="liquid-glass liquid-float liquid-pill liquid-enter h-8 px-3 font-mono text-[10px] tracking-[0.14em] uppercase liquid-title"
@@ -281,7 +301,7 @@ export default function SessionPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2">
+          <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-2">
             <div className="relative">
               <button
                 onClick={() => setOpenSelect((v) => (v === "format" ? null : "format"))}
@@ -305,6 +325,33 @@ export default function SessionPage() {
                       }`}
                     >
                       {f}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setOpenSelect((v) => (v === "threshold" ? null : "threshold"))}
+                className="liquid-glass liquid-float liquid-pill h-8 w-full px-2 font-mono text-[10px] uppercase liquid-title flex items-center justify-between"
+              >
+                <span>{alertThreshold}</span>
+                <span className="liquid-meta">▾</span>
+              </button>
+              {openSelect === "threshold" && (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-10 liquid-glass liquid-float liquid-enter liquid-menu liquid-menu-popover">
+                  {ALERT_THRESHOLD_OPTIONS.map((threshold) => (
+                    <button
+                      key={threshold}
+                      onClick={() => {
+                        setAlertThreshold(threshold);
+                        setOpenSelect(null);
+                      }}
+                      className={`liquid-menu-item font-mono text-[10px] uppercase ${
+                        alertThreshold === threshold ? "liquid-menu-item-active" : "liquid-meta"
+                      }`}
+                    >
+                      {threshold}
                     </button>
                   ))}
                 </div>

@@ -10,9 +10,9 @@ import (
 type SessionState string
 
 const (
-	StateActive  SessionState = "active"
-	StatePaused  SessionState = "paused"
-	StateClosed  SessionState = "closed"
+	StateActive SessionState = "active"
+	StatePaused SessionState = "paused"
+	StateClosed SessionState = "closed"
 )
 
 // Session represents a single inspection session.
@@ -29,6 +29,22 @@ type Session struct {
 	UpdatedAt      time.Time         `json:"updated_at"`
 	ClosedAt       time.Time         `json:"closed_at,omitempty"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
+}
+
+type EnvironmentHazardMemory struct {
+	Description     string         `json:"description"`
+	Count           int            `json:"count"`
+	HighestSeverity types.Severity `json:"highest_severity"`
+	LastSeenAt      time.Time      `json:"last_seen_at"`
+}
+
+type EnvironmentProfile struct {
+	CameraID           string                    `json:"camera_id"`
+	InspectionCount    int                       `json:"inspection_count"`
+	ObservationCount   int                       `json:"observation_count"`
+	LastInspectionMode string                    `json:"last_inspection_mode"`
+	LastUpdated        time.Time                 `json:"last_updated"`
+	FamiliarHazards    []EnvironmentHazardMemory `json:"familiar_hazards,omitempty"`
 }
 
 // SessionConfig holds parameters for creating a new session.
