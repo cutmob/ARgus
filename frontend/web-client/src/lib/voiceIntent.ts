@@ -12,6 +12,8 @@ export type VoiceIntentType =
   | "describe_scene"
   | "switch_mode"
   | "toggle_overlays"
+  | "show_incidents"
+  | "hide_incidents"
   | "set_glass_light"
   | "set_glass_dark"
   | "mute_voice"
@@ -84,6 +86,14 @@ export function resolveVoiceIntent(transcript: string): VoiceIntent {
 
   if (containsAny(text, ["overlay", "show overlays", "hide overlays", "toggle overlays"])) {
     return { type: "toggle_overlays", confidence: 0.86 };
+  }
+
+  if (containsAny(text, ["show incidents", "show incident", "show hazards panel", "open incidents", "open hazard panel", "show timeline"])) {
+    return { type: "show_incidents", confidence: 0.9 };
+  }
+
+  if (containsAny(text, ["hide incidents", "hide incident", "hide hazards panel", "close incidents", "close hazard panel", "collapse incidents"])) {
+    return { type: "hide_incidents", confidence: 0.9 };
   }
 
   if (containsAny(text, ["light glass", "bright glass", "light mode"])) {

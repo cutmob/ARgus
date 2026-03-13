@@ -1,12 +1,9 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
-import { useVoiceCommands } from "@/hooks/useVoiceCommands";
-import { speakResponse } from "@/lib/tts";
+import { EventPillOverlay } from "@/components/EventPillOverlay";
 import { ArgusIndicator } from "@/components/ArgusIndicator";
 import { HazardOverlay, type GlassMode } from "@/components/HazardOverlay";
-import { INSPECTION_MODES } from "@/lib/modes";
-import { resolveVoiceIntent } from "@/lib/voiceIntent";
 import type { ActionCard, Hazard, Overlay } from "@/lib/types";
 
 interface ARSessionProps {
@@ -30,6 +27,10 @@ interface ARSessionProps {
   mode: string;
   onModeChange: (mode: string) => void;
   videoSource?: string | null;
+  audioInputEnabled: boolean;
+  audioInputActive: boolean;
+  audioInputSupported: boolean;
+  onAudioInputChange: (enabled: boolean) => void;
   glassMode?: GlassMode;
   onGlassModeChange?: (mode: GlassMode) => void;
   onOpenReportView?: () => void;
@@ -49,6 +50,10 @@ export function ARSession({
   mode,
   onModeChange,
   videoSource,
+  audioInputEnabled,
+  audioInputActive,
+  audioInputSupported,
+  onAudioInputChange,
   glassMode: externalGlassMode,
   onGlassModeChange,
   onOpenReportView,
@@ -58,16 +63,6 @@ export function ARSession({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [overlaysVisible, setOverlaysVisible] = useState(Boolean(videoSource));
   const [localGlassMode, setLocalGlassMode] = useState<GlassMode>("dark");
-  const [ttsEnabled, setTtsEnabled] = useState(true);
-  const [micEnabled, setMicEnabled] = useState(true);
-  const ttsEnabledRef = useRef(true);
-  ttsEnabledRef.current = ttsEnabled;
-
-  // Wrapped speak — respects mute state
-  const speak = useCallback((text: string, onEnd?: () => void) => {
-    if (ttsEnabledRef.current) speakResponse(text, onEnd);
-    else onEnd?.();
-  }, []);
 
   const glassMode = externalGlassMode ?? localGlassMode;
   const setGlassMode = useCallback(
@@ -162,97 +157,6 @@ export function ARSession({
     return () => clearInterval(id);
   }, [session.isInspecting, session.sendFrame]);
 
-  /* ── Voice commands (always active — no button to toggle) ── */
-  const handleVoiceCommand = useCallback(
-    (transcript: string) => {
-      const intent = resolveVoiceIntent(transcript);
-      switch (intent.type) {
-        case "start_inspection":
-          session.startInspection(mode);
-          speak("On it.");
-          break;
-        case "stop_inspection":
-          session.stopInspection();
-          speak("Stopped.");
-          break;
-        case "open_report":
-          onOpenReportView?.();
-          speak("Report view open.");
-          break;
-        case "close_report":
-          onCloseReportView?.();
-          speak("Report view dismissed.");
-          break;
-        case "generate_report":
-          session.generateReport();
-          speak("Generating report.");
-          break;
-        case "query_status": {
-          const n = session.hazards.length;
-          speak(`${n} hazard${n !== 1 ? "s" : ""} detected. Risk level ${session.riskLevel}.`);
-          break;
-        }
-        case "operator_actions":
-          session.requestActions();
-          speak("Generating top actions now.");
-          break;
-        case "clear_hazards":
-          session.clearHazards();
-          speak("Cleared.");
-          break;
-        case "describe_scene":
-          if (session.hazards.length === 0) {
-            speak("No hazards detected yet.");
-          } else {
-            const top = session.hazards.slice(0, 3);
-            const summary = top.map((h) => h.description).join(". ");
-            speak(`${session.hazards.length} hazard${session.hazards.length !== 1 ? "s" : ""}. ${summary}`);
-          }
-          break;
-        case "switch_mode":
-          if (intent.mode) {
-            const matched = INSPECTION_MODES.find((m) => m === intent.mode);
-            if (matched) {
-              onModeChange(matched);
-              speak(`Switching to ${matched}.`);
-            }
-          }
-          break;
-        case "toggle_overlays":
-          setOverlaysVisible((v) => {
-            speak(v ? "Overlays hidden." : "Overlays visible.");
-            return !v;
-          });
-          break;
-        case "set_glass_light":
-          setGlassMode("light");
-          speak("Light glass.");
-          break;
-        case "set_glass_dark":
-          setGlassMode("dark");
-          speak("Dark glass.");
-          break;
-        case "mute_voice":
-          window.speechSynthesis?.cancel();
-          setTtsEnabled(false);
-          break;
-        case "unmute_voice":
-          setTtsEnabled(true);
-          speakResponse("Voice on.");
-          break;
-        default:
-          session.sendNaturalLanguageCommand?.(transcript);
-          break;
-      }
-    },
-    [session, mode, onModeChange, onOpenReportView, onCloseReportView, speak]
-  );
-
-  const { listening, supported } = useVoiceCommands({
-    onCommand: handleVoiceCommand,
-    enabled: micEnabled,
-  });
-
   return (
     <div className="h-screen w-screen bg-black relative overflow-hidden">
       {/* Fullscreen passthrough — the glasses camera feed */}
@@ -266,6 +170,16 @@ export function ARSession({
       <canvas ref={canvasRef} className="hidden" />
 
       <HazardOverlay overlays={session.overlays} visible={overlaysVisible} glassMode={glassMode} />
+      <EventPillOverlay
+        hazards={session.hazards}
+        overlays={session.overlays}
+        visible={overlaysVisible}
+        glassMode={glassMode}
+        interactive={false}
+        expandMode="none"
+        placementMode="stack-top-left"
+        maxItems={1}
+      />
 
       {session.actionCards.length > 0 && (
         <div className="absolute bottom-4 left-4 right-4 z-20 space-y-1.5">
@@ -298,22 +212,22 @@ export function ARSession({
         </div>
         <button
           onClick={() => {
-            if (!supported) return;
-            setMicEnabled((v) => !v);
+            if (!audioInputSupported) return;
+            onAudioInputChange(!audioInputEnabled);
           }}
           className="liquid-glass liquid-float liquid-pill liquid-enter px-2 py-1 font-mono text-[9px] tracking-[0.2em] uppercase"
           style={{
-            color: !supported
+            color: !audioInputSupported
               ? "rgba(239,68,68,0.9)"
-              : micEnabled && listening
+              : audioInputEnabled && audioInputActive
               ? "#FF5F1F"
               : "rgba(255,255,255,0.5)",
-            opacity: supported ? 1 : 0.75,
-            cursor: supported ? "pointer" : "not-allowed",
+            opacity: audioInputSupported ? 1 : 0.75,
+            cursor: audioInputSupported ? "pointer" : "not-allowed",
           }}
-          title={supported ? "Toggle voice command microphone" : "Speech recognition unsupported in this browser"}
+          title={audioInputSupported ? "Toggle Live microphone" : "Microphone unsupported in this browser"}
         >
-          {supported ? (micEnabled ? "Mic On" : "Mic Off") : "Mic N/A"}
+          {audioInputSupported ? (audioInputEnabled ? "Mic On" : "Mic Off") : "Mic N/A"}
         </button>
       </div>
     </div>

@@ -95,6 +95,14 @@ func ArgusTools() []*genai.Tool {
 						Properties: map[string]*genai.Schema{},
 					},
 				},
+				{
+					Name:        "get_incidents",
+					Description: "Get the list of current incident-level findings (persistent or recurring hazards) for this inspection session.",
+					Parameters: &genai.Schema{
+						Type:       "object",
+						Properties: map[string]*genai.Schema{},
+					},
+				},
 			},
 		},
 	}

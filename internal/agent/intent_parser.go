@@ -45,33 +45,33 @@ func (ip *IntentParser) Parse(text string) types.AgentIntent {
 	}
 
 	switch {
-	case ip.matchesAny(lower, "start inspection", "begin inspection", "inspect"):
+	case ip.matchesAny(lower, "start inspection", "begin inspection", "inspect", "kick off inspection", "inspection on", "start scan", "begin scan"):
 		intent.Type = types.IntentStartInspection
 		intent.Mode = ip.extractMode(lower)
 
-	case ip.matchesAny(lower, "stop inspection", "end inspection", "finish inspection", "done"):
+	case ip.matchesAny(lower, "stop inspection", "end inspection", "finish inspection", "done", "halt inspection", "pause inspection", "inspection off", "stop scan"):
 		intent.Type = types.IntentStopInspection
 
-	case ip.matchesAny(lower, "switch to", "change to", "switch mode"):
+	case ip.matchesAny(lower, "switch to", "change to", "switch mode", "set mode", "use mode", "go to"):
 		intent.Type = types.IntentSwitchMode
 		intent.Mode = ip.extractMode(lower)
 
-	case ip.matchesAny(lower, "generate report", "create report", "make report", "export report", "export results"):
+	case ip.matchesAny(lower, "generate report", "create report", "make report", "export report", "export results", "run report", "report now"):
 		intent.Type = types.IntentGenerateReport
 		intent.Format = ip.extractFormat(lower)
 
-	case ip.matchesAny(lower, "send to", "export to", "push to"):
+	case ip.matchesAny(lower, "send to", "export to", "push to", "send report to", "share to", "deliver to"):
 		intent.Type = types.IntentExportReport
 		intent.Target = ip.extractTarget(lower)
 		intent.Format = ip.extractFormat(lower)
 
-	case ip.matchesAny(lower, "what hazards", "what issues", "what problems", "findings"):
+	case ip.matchesAny(lower, "what hazards", "what issues", "what problems", "findings", "describe scene", "what do you see", "summarize scene"):
 		intent.Type = types.IntentQueryHazards
 
-	case ip.matchesAny(lower, "immediate actions", "top 3 actions", "top three actions", "next actions", "what should we do now"):
+	case ip.matchesAny(lower, "immediate actions", "top 3 actions", "top three actions", "next actions", "what should we do now", "top actions"):
 		intent.Type = types.IntentOperatorActions
 
-	case ip.matchesAny(lower, "status", "how's it going", "what's happening", "update"):
+	case ip.matchesAny(lower, "status", "how's it going", "what's happening", "update", "risk level", "current risk", "how many hazards"):
 		intent.Type = types.IntentQueryStatus
 
 	default:

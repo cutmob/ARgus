@@ -49,14 +49,19 @@ ARGUS makes inspection continuous, conversational, and immediate. Point any came
 | Feature | Detail |
 |---|---|
 | Real-time hazard detection | JPEG frames streamed to Gemini Live at 1 fps |
-| Bidirectional voice | Raw PCM audio streamed in both directions; Gemini responds in speech |
+| Bidirectional voice | Raw PCM audio via AudioWorklet at 20 ms chunks (16 kHz); Gemini responds in speech |
 | Interruption handling | Mid-response user speech immediately cancels the current output |
 | Wake word activation | Say **"argus"** to start an inspection hands-free |
 | Glassmorphic AR overlays | Dark or light liquid-glass overlays with severity-coded corner brackets |
 | Swappable rule modules | 20 industry-specific inspection rule sets — hot-switchable mid-session |
 | Voice commands | See full command reference below |
-| Report generation | Full inspection reports exported as JSON |
+| Report generation | Full inspection reports exported as PDF, Word, JSON, CSV, HTML, or webhook |
 | Adaptive interface | Auto-detects context and renders the right UI: Smartphone / CCTV / AR |
+| **Temporal reasoning** | SPRT log-likelihood accumulator tracks hazard evidence over time; incidents auto-confirm at LLR ≥ 2.89 and auto-resolve at LLR ≤ −2.25 |
+| **Incident lifecycle** | Six states: detected → persistent → escalated → acknowledged → resolved → recurring |
+| **Risk trend analysis** | Sliding 20-sample confidence history; slope direction computed as escalating / stable / improving |
+| **Incident Timeline panel** | Glass-morphic overlay listing active incidents with SPRT LLR bar, lifecycle badge, trend, duration, cameras, and triggered rules |
+| **Session continuity** | GoAway reconnect injects active incident context into the new Gemini Live session so reasoning resumes without loss |
 
 ---
 
@@ -137,6 +142,46 @@ ARGUS detects the device and environment on load and renders one of three purpos
 
 ---
 
+## Temporal Reasoning
+
+ARGUS goes beyond per-frame hazard detection. A backend temporal engine tracks each hazard type over time using **Wald's Sequential Probability Ratio Test (SPRT)**, giving every incident a mathematically grounded confirmation before escalating.
+
+### How it works
+
+Each time a hazard is detected, its confidence score contributes an observation to a running **log-likelihood ratio (LLR)**:
+
+```
+LLR += log(confidence / (1 - confidence))
+```
+
+| LLR threshold | Meaning |
+|---|---|
+| ≥ **2.89** (α=0.05, β=0.10) | SPRT alarm — incident confirmed |
+| ≤ **−2.25** | SPRT clear — incident auto-resolved |
+
+A sliding 20-sample **confidence history** feeds a slope computation that labels the incident's **risk trend**: `escalating` · `stable` · `improving`.
+
+### Incident lifecycle
+
+```
+detected → persistent → escalated → acknowledged → resolved → recurring
+```
+
+Incidents progress through these states automatically as evidence accumulates. Each incident tracks: duration, peak LLR, triggered rules, contributing cameras, frame snapshots, and trend direction.
+
+### Session continuity
+
+When Gemini sends a `GoAway` (planned reconnect), ARGUS serialises all active incidents and injects them as context into the new Live session — the agent's temporal awareness survives the reconnect without any gap.
+
+### Frontend panel
+
+The **Incident Timeline** panel (bottom overlay, all session modes) shows:
+- Severity dot + lifecycle badge + hazard type + trend icon + duration
+- SPRT LLR progress bar (grey → amber → green at confirmation threshold)
+- Expandable detail: timestamps, peak LLR, cameras, rules triggered, snapshot count
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -148,7 +193,8 @@ graph TB
         AR[AR / Headset Session]
         SM & CV & AR --> HS[useArgusSession]
         HS --- WW[useWakeWord\nsay 'argus' to activate]
-        HS --- VC[useVoiceCommands\ninspect · stop · status · report]
+        HS --- AU[AudioWorklet\n20 ms PCM · VAD gate]
+        HS --- IT[IncidentTimeline\nSPRT LLR · lifecycle · trend]
     end
 
     HS -->|"WebSocket wss://\nJPEG frames · PCM 16 kHz · control events"| WS
@@ -157,16 +203,18 @@ graph TB
         direction TB
         WS[WebSocket Server]
         WS --> AC[Agent Controller]
-        AC --> VP[Vision Pipeline\nFrame Sampler · Event Engine]
-        AC --> RE[Rule Engine\nModule Loader]
-        AC --> IP[Intent Parser]
-        AC --> RB[Report Builder\nJSON · PDF]
+        AC --> VP[Vision Pipeline\nFrame Sampler · FrameBuffer]
+        AC --> RE[Rule Engine\nModule Loader · 20 modules]
+        AC --> IP[Intent Parser\nmode alias resolver]
+        AC --> RB[Report Builder\nPDF · JSON · CSV · webhook]
+        AC --> TE[Temporal Engine\nSPRT · confidence history\nincident lifecycle]
+        TE -->|incidents_update| WS
     end
 
     AC -->|"google.golang.org/genai SDK\nbidirectional stream"| GL
 
     subgraph GM ["Gemini Live API"]
-        GL["gemini-2.5-flash-native-audio-preview\n─────────────────────────────\ninbound  → audio stream · JPEG frames\noutbound → audio · text · tool calls"]
+        GL["gemini-live-2.5-flash-native-audio\n─────────────────────────────\ninbound  → audio stream · JPEG frames\noutbound → audio · text · tool calls\nGoAway  → temporal context re-injected"]
     end
 
     subgraph GCP ["Google Cloud Platform"]
@@ -197,7 +245,7 @@ graph TB
 **Frontend**
 - Next.js 14, TypeScript, Tailwind CSS
 - Web Speech API — always-on wake word detection + voice commands
-- Web Audio API — PCM audio capture and streaming
+- **AudioWorklet** — dedicated-thread PCM capture at 20 ms / 320-sample chunks with VAD energy gate (replaces ScriptProcessorNode)
 - WebXR — AR session detection
 - Space Grotesk · Figtree · IBM Plex Mono
 
@@ -224,18 +272,27 @@ graph TB
 git clone https://github.com/cutmob/ARgus
 cd ARgus
 cp .env.example .env
-# Set GEMINI_API_KEY in .env
+# Edit .env and set GEMINI_API_KEY
 
-# 2. Backend
-make run
-# → http://localhost:8080
-# → health: http://localhost:8080/api/v1/health
-
-# 3. Frontend (separate terminal)
-make frontend-install
-make frontend-dev
-# → http://localhost:3001
+# 2. Start everything with one command
+bash dev.sh
+# ✓ Pre-flight checks GEMINI_API_KEY and .env.local
+# ✓ Kills stale processes on :8080 / :3000
+# ✓ Waits for backend before starting frontend
+# ✓ Prints the URL and demo token when ready
 ```
+
+Or via Make:
+
+```bash
+make dev          # backend + frontend together (calls dev.sh)
+make dev-backend  # backend only
+make dev-frontend # frontend only
+```
+
+The app opens at **http://localhost:3000/session**. Enter a demo token from `DEMO_TOKENS` in `.env` (default: `ARGUS-DEMO1`).
+
+> **macOS / Linux users** — `dev.sh` works unchanged. It auto-detects the platform for port cleanup (`lsof`/`kill` on Unix, `netstat`/`taskkill` on Windows).
 
 ---
 
@@ -328,12 +385,15 @@ All real-time communication between the frontend and backend runs over a single 
 **Server → Client**
 
 ```json
-{ "type": "hazard",        "hazards": [...],  "overlays": [...] }
-{ "type": "voice_response","text": "...",     "audio": "<base64 PCM>" }
-{ "type": "overlay",       "overlays": [...] }
-{ "type": "report",        "report": {...} }
-{ "type": "error",         "message": "..." }
+{ "type": "hazard",           "hazards": [...],     "overlays": [...] }
+{ "type": "voice_response",   "text": "...",        "audio": "<base64 PCM>" }
+{ "type": "overlay",          "overlays": [...] }
+{ "type": "incidents_update", "incidents": [...] }
+{ "type": "report",           "report": {...} }
+{ "type": "error",            "message": "..." }
 ```
+
+The `incidents_update` message is pushed after every hazard ingest that changes temporal state. Each incident carries: `incident_id`, `hazard_type`, `severity`, `lifecycle_state`, `start_at`, `last_seen`, `duration_seconds`, `peak_llr`, `sprt_confirmed`, `risk_trend`, `cameras`, `snapshot_count`, and `rules_triggered`.
 
 ---
 
@@ -368,8 +428,10 @@ All real-time communication between the frontend and backend runs over a single 
 
 | Target | Description |
 |---|---|
-| `make run` | Run backend locally |
-| `make frontend-dev` | Run frontend dev server |
+| `make dev` | **Start backend + frontend together** (recommended) |
+| `make dev-backend` | Run backend only |
+| `make dev-frontend` | Run frontend dev server only |
+| `make run` | Run backend (alias for dev-backend) |
 | `make build` | Compile Go binary |
 | `make test` | Run Go tests |
 | `make docker-build` | Build Docker image locally |

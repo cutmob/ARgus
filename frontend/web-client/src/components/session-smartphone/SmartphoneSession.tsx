@@ -62,11 +62,14 @@ export function SmartphoneSession({
       {/* Camera */}
       <div className="absolute inset-0">
         <CameraView
+          hazards={session.hazards}
           overlays={session.overlays}
           overlaysVisible={overlaysVisible}
           glassMode={glassMode}
           videoSource={videoSource}
           onFrame={session.sendFrame}
+          pillExpandMode="tap"
+          pillPlacementMode="stack-top-left"
         />
       </div>
 
@@ -153,13 +156,24 @@ export function SmartphoneSession({
               >
                 TOP 3
               </button>
-              <button
-                onClick={() => setGlassMode(glassMode === "dark" ? "light" : "dark")}
-                className="liquid-glass liquid-float liquid-pill font-display text-xs font-medium px-4 tracking-[0.15em] uppercase transition-colors duration-100 liquid-title"
-                title="Toggle overlay style"
-              >
-                {glassMode === "dark" ? "◑" : "○"}
-              </button>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => setGlassMode("dark")}
+                  className="liquid-glass liquid-float liquid-pill font-display text-xs font-medium px-3 tracking-[0.15em] uppercase transition-colors duration-100"
+                  style={{ color: glassMode === "dark" ? "#FF5F1F" : "#4a4a4a" }}
+                  title="Dark glass mode"
+                >
+                  Dark
+                </button>
+                <button
+                  onClick={() => setGlassMode("light")}
+                  className="liquid-glass liquid-float liquid-pill font-display text-xs font-medium px-3 tracking-[0.15em] uppercase transition-colors duration-100"
+                  style={{ color: glassMode === "light" ? "#FF5F1F" : "#4a4a4a" }}
+                  title="Light glass mode"
+                >
+                  Light
+                </button>
+              </div>
             </div>
 
             {/* Hazards */}

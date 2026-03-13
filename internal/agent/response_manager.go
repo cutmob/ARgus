@@ -6,14 +6,18 @@ import (
 
 // AgentResponse wraps the agent's output to the client.
 type AgentResponse struct {
-	Type      string             `json:"type"` // "voice", "overlay", "report", "audio", "error"
+	Type      string             `json:"type"` // "voice", "overlay", "report", "audio", "error", "incidents_update"
 	Text      string             `json:"text"`
 	Voice     string             `json:"voice,omitempty"`
+	Speaker   string             `json:"speaker,omitempty"`
 	AudioData []byte             `json:"audio_data,omitempty"` // Raw PCM audio from Gemini (24kHz)
 	Overlays  []types.Overlay    `json:"overlays,omitempty"`
 	ReportID  string             `json:"report_id,omitempty"`
 	Hazards   []types.Hazard     `json:"hazards,omitempty"`
 	Actions   []types.ActionCard `json:"actions,omitempty"`
+	// Incidents carries the serialized incident timeline pushed to the frontend
+	// after each hazard ingest so the IncidentTimeline panel stays current.
+	Incidents interface{}        `json:"incidents,omitempty"`
 }
 
 // ResponseManager constructs agent responses for the client.

@@ -14,6 +14,7 @@ import (
 	"github.com/cutmob/argus/internal/inspection"
 	"github.com/cutmob/argus/internal/reporting"
 	"github.com/cutmob/argus/internal/session"
+	"github.com/cutmob/argus/internal/temporal"
 	"github.com/cutmob/argus/internal/vision"
 	"github.com/cutmob/argus/pkg/types"
 )
@@ -27,6 +28,7 @@ type ControllerConfig struct {
 	ReportBuilder  *reporting.ReportBuilder
 	ModuleLoader   *inspection.ModuleLoader
 	GeminiClient   *geminiPkg.Client
+	TemporalEngine temporal.Engine
 	OnResponse     func(sessionID string, resp *AgentResponse)
 }
 
@@ -41,12 +43,16 @@ type Controller struct {
 	reports      *reporting.ReportBuilder
 	modules      *inspection.ModuleLoader
 	gemini       *geminiPkg.Client
+	temporal     temporal.Engine
 	intentParser *IntentParser
 	responseMgr  *ResponseManager
 	onResponse   func(sessionID string, resp *AgentResponse)
 
-	mu           sync.RWMutex
-	liveSessions map[string]*geminiPkg.LiveSession
+	mu             sync.RWMutex
+	liveSessions   map[string]*geminiPkg.LiveSession
+	// resumeHandles stores the last GoAway resumption handle per session so
+	// we can re-establish Gemini Live sessions with temporal state continuity.
+	resumeHandles  map[string]string
 }
 
 func NewController(cfg ControllerConfig) *Controller {
@@ -58,10 +64,12 @@ func NewController(cfg ControllerConfig) *Controller {
 		reports:      cfg.ReportBuilder,
 		modules:      cfg.ModuleLoader,
 		gemini:       cfg.GeminiClient,
+		temporal:     cfg.TemporalEngine,
 		intentParser: NewIntentParser(),
 		responseMgr:  NewResponseManager(),
 		onResponse:   cfg.OnResponse,
-		liveSessions: make(map[string]*geminiPkg.LiveSession),
+		liveSessions:  make(map[string]*geminiPkg.LiveSession),
+		resumeHandles: make(map[string]string),
 	}
 }
 
@@ -201,6 +209,7 @@ func (c *Controller) startInspection(sessionID string, intent types.AgentIntent)
 		OnAudio:      c.handleGeminiAudio,
 		OnToolCall:   c.handleGeminiToolCall,
 		OnTranscript: c.handleGeminiTranscript,
+		OnGoAway:     c.handleGeminiGoAway,
 	})
 	if err != nil {
 		slog.Error("failed to start gemini live session",
@@ -241,7 +250,7 @@ func (c *Controller) UpdateSessionPreferences(sessionID string, prefs map[string
 	if hasLive && ls.IsActive() {
 		parts := make([]string, 0, len(prefs))
 		if threshold := strings.TrimSpace(prefs["alert_threshold"]); threshold != "" {
-			parts = append(parts, "speak proactive findings only for "+threshold+" severity and above while keeping conversational replies enabled")
+			parts = append(parts, "stay silent by default and speak proactive findings only for "+threshold+" severity and above")
 		}
 		if len(parts) > 0 {
 			_ = ls.SendText("Operator preferences updated: " + strings.Join(parts, ". "))
@@ -271,7 +280,28 @@ func (c *Controller) stopInspection(sessionID string) *AgentResponse {
 	)
 }
 
+// resolveModeAlias normalises voice-command mode names to module names.
+// "kitchen" → "restaurant" is the canonical example where the spoken alias
+// differs from the module key used in the loader.
+func resolveModeAlias(mode string) string {
+	aliases := map[string]string{
+		"kitchen":       "restaurant",
+		"lift":          "elevator",
+		"building site": "construction",
+		"storage":       "warehouse",
+		"factory":       "factory",
+		"manufacturing": "factory",
+		"plane":         "aircraft",
+		"oil rig":       "oil_rig",
+	}
+	if resolved, ok := aliases[strings.ToLower(strings.TrimSpace(mode))]; ok {
+		return resolved
+	}
+	return mode
+}
+
 func (c *Controller) switchMode(sessionID string, mode string) *AgentResponse {
+	mode = resolveModeAlias(mode)
 	mod, err := c.modules.Load(mode)
 	if err != nil {
 		available := c.modules.ListAvailable()
@@ -340,6 +370,45 @@ func (c *Controller) queryHazards(sessionID string) *AgentResponse {
 		return c.responseMgr.Error("No active session.")
 	}
 
+	if len(sess.Hazards) == 0 && c.temporal == nil {
+		return c.responseMgr.Voice("No hazards detected so far.")
+	}
+
+	// If a temporal engine is available, prefer incident-based summary.
+	if c.temporal != nil {
+		incidents, err := c.temporal.GetActiveIncidents(sessionID)
+		if err == nil && len(incidents) > 0 {
+			total := len(incidents)
+			persistent := 0
+			recurring := 0
+			critical := 0
+			for _, inc := range incidents {
+				if inc.LifecycleState == temporal.IncidentPersistent {
+					persistent++
+				}
+				if inc.LifecycleState == temporal.IncidentRecurring || inc.LifecycleState == temporal.IncidentEscalated {
+					recurring++
+				}
+				if inc.Severity == types.SeverityCritical || inc.Severity == types.SeverityHigh {
+					critical++
+				}
+			}
+
+			summary := "Active inspection with " + itoa(total) + " incident-level findings. "
+			if critical > 0 {
+				summary += itoa(critical) + " are high or critical severity. "
+			}
+			if persistent > 0 {
+				summary += itoa(persistent) + " are persistent over time. "
+			}
+			if recurring > 0 {
+				summary += itoa(recurring) + " are recurring or escalating patterns."
+			}
+			return c.responseMgr.Voice(strings.TrimSpace(summary))
+		}
+	}
+
+	// Fallback to session hazard-based summary.
 	if len(sess.Hazards) == 0 {
 		return c.responseMgr.Voice("No hazards detected so far.")
 	}
@@ -371,11 +440,20 @@ func (c *Controller) queryStatus(sessionID string) *AgentResponse {
 		return c.responseMgr.Voice("No active inspection session.")
 	}
 
-	return c.responseMgr.Voice(
-		"Active " + sess.InspectionMode + " inspection. " +
-			itoa(len(sess.Hazards)) + " hazards found. " +
-			"Risk score: " + ftoa(sess.RiskScore),
-	)
+	base := "Active " + sess.InspectionMode + " inspection. " +
+		itoa(len(sess.Hazards)) + " hazards found. " +
+		"Risk score: " + ftoa(sess.RiskScore) + "."
+
+	// Enrich with temporal incident summary when available.
+	if c.temporal != nil {
+		if summary, err := c.temporal.GetIncidentSummary(sessionID, time.Now().Add(-1*time.Hour), time.Now()); err == nil {
+			if summary.IncidentCount > 0 {
+				base += " " + itoa(summary.IncidentCount) + " incident-level findings over the last hour."
+			}
+		}
+	}
+
+	return c.responseMgr.Voice(base)
 }
 
 func (c *Controller) operatorActions(sessionID string) *AgentResponse {
@@ -487,8 +565,27 @@ func (c *Controller) processGeminiResponse(sessionID string, resp *types.GeminiR
 		return
 	}
 
+	// Grab recent frames once — used for FrameBuffer → EvidencePack wiring.
+	var recentFrames []types.Frame
+	if sess, ok := c.sessions.Get(sessionID); ok && sess.FrameBuffer != nil {
+		recentFrames = sess.FrameBuffer.Recent(5)
+	}
+
+	incidentChanged := false
 	for _, h := range resp.Hazards {
 		c.sessions.AddHazard(sessionID, h)
+		// GAP 5: feed each hazard into the temporal engine with frame evidence so
+		// SPRT accumulation, confidence history, and EvidencePack snapshots are live.
+		if c.temporal != nil {
+			c.temporal.IngestHazardWithFrames(sessionID, h, recentFrames)
+			incidentChanged = true
+		}
+	}
+
+	// GAP 7: push an incidents_update message whenever incidents may have changed
+	// so the frontend timeline panel stays current without polling.
+	if incidentChanged && c.onResponse != nil {
+		c.pushIncidentsUpdate(sessionID)
 	}
 
 	if c.onResponse == nil {
@@ -511,9 +608,67 @@ func (c *Controller) processGeminiResponse(sessionID string, resp *types.GeminiR
 		return
 	}
 
-	if message != "" {
+	if message != "" && voice != "" {
 		c.onResponse(sessionID, c.responseMgr.Voice(message))
 	}
+}
+
+// pushIncidentsUpdate emits an incidents_update WebSocket message containing
+// all active incidents so the frontend IncidentTimeline panel can re-render.
+func (c *Controller) pushIncidentsUpdate(sessionID string) {
+	if c.temporal == nil || c.onResponse == nil {
+		return
+	}
+	incidents, err := c.temporal.GetActiveIncidents(sessionID)
+	if err != nil || len(incidents) == 0 {
+		return
+	}
+
+	type incidentPush struct {
+		ID             string  `json:"incident_id"`
+		HazardType     string  `json:"hazard_type"`
+		Severity       string  `json:"severity"`
+		LifecycleState string  `json:"lifecycle_state"`
+		StartAt        string  `json:"start_at"`
+		LastSeen       string  `json:"last_seen,omitempty"`
+		DurationSecs   float64 `json:"duration_seconds,omitempty"`
+		RulesTriggered []string `json:"rules_triggered,omitempty"`
+		PeakLLR        float64 `json:"peak_llr,omitempty"`
+		SPRTConfirmed  bool    `json:"sprt_confirmed,omitempty"`
+		RiskTrend      string  `json:"risk_trend,omitempty"`
+		Cameras        []string `json:"cameras,omitempty"`
+		SnapshotCount  int     `json:"snapshot_count,omitempty"`
+	}
+
+	out := make([]incidentPush, 0, len(incidents))
+	for _, inc := range incidents {
+		p := incidentPush{
+			ID:             inc.IncidentID,
+			HazardType:     inc.HazardType,
+			Severity:       string(inc.Severity),
+			LifecycleState: string(inc.LifecycleState),
+			StartAt:        inc.StartAt.Format(time.RFC3339),
+			Cameras:        inc.InvolvedCameras,
+		}
+		if ev, err2 := func() (temporal.EvidencePack, error) {
+			_, ev, err := c.temporal.GetIncidentWithEvidence(inc.IncidentID)
+			return ev, err
+		}(); err2 == nil && ev.IncidentID != "" {
+			p.LastSeen = ev.LastSeen.Format(time.RFC3339)
+			p.DurationSecs = ev.LastSeen.Sub(ev.FirstSeen).Seconds()
+			p.RulesTriggered = ev.RulesTriggered
+			p.PeakLLR = ev.PeakLLR
+			p.SPRTConfirmed = ev.SPRTConfirmed
+			p.RiskTrend = ev.RiskTrend
+			p.SnapshotCount = len(ev.Snapshots)
+		}
+		out = append(out, p)
+	}
+
+	c.onResponse(sessionID, &AgentResponse{
+		Type:      "incidents_update",
+		Incidents: out,
+	})
 }
 
 func (c *Controller) shouldSpeakFindingsForSession(sessionID string, hazards []types.Hazard) bool {
@@ -587,6 +742,98 @@ func (c *Controller) buildEnvironmentFamiliarity(cameraID string) string {
 
 // --- Gemini Live session callbacks ---
 
+// handleGeminiGoAway is called when the Gemini Live server signals an imminent
+// disconnection. We store the resumption handle and schedule a transparent
+// reconnect that re-injects temporal state as context.
+func (c *Controller) handleGeminiGoAway(sessionID, handle string) {
+	slog.Warn("gemini goaway — scheduling reconnect", "session_id", sessionID)
+	c.mu.Lock()
+	if handle != "" {
+		c.resumeHandles[sessionID] = handle
+	}
+	c.mu.Unlock()
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		sess, ok := c.sessions.Get(sessionID)
+		if !ok {
+			return
+		}
+		mod, err := c.modules.Load(sess.InspectionMode)
+		if err != nil {
+			return
+		}
+		alertThreshold := ""
+		if sess.Metadata != nil {
+			alertThreshold = sess.Metadata["alert_threshold"]
+		}
+		runtimeContext := strings.Join([]string{
+			"Session resumed: " + time.Now().Format("2006-01-02T15:04:05Z07:00"),
+			"Rules loaded: " + itoa(len(mod.Rules)),
+			c.rules.BuildPromptContext(sessionID),
+			c.buildTemporalResumeContext(sessionID),
+		}, "\n")
+		systemPrompt := geminiPkg.BuildInspectionPrompt(
+			mod.SystemPrompt, sess.InspectionMode, sess.CameraID,
+			alertThreshold, runtimeContext,
+			c.buildEnvironmentFamiliarity(sess.CameraID),
+		)
+		ctx := context.Background()
+		newLS, err := geminiPkg.NewLiveSession(ctx, c.gemini, geminiPkg.LiveSessionConfig{
+			SessionID:    sessionID,
+			SystemPrompt: systemPrompt,
+			Tools:        geminiPkg.ArgusTools(),
+			OnText:       c.handleGeminiText,
+			OnAudio:      c.handleGeminiAudio,
+			OnToolCall:   c.handleGeminiToolCall,
+			OnTranscript: c.handleGeminiTranscript,
+			OnGoAway:     c.handleGeminiGoAway,
+		})
+		if err != nil {
+			slog.Error("failed to reconnect gemini live after goaway", "session_id", sessionID, "error", err)
+			return
+		}
+		c.mu.Lock()
+		c.liveSessions[sessionID] = newLS
+		c.mu.Unlock()
+		slog.Info("gemini live reconnected after goaway", "session_id", sessionID)
+	}()
+}
+
+// buildTemporalResumeContext serializes active incident state into a compact
+// text block for injection into a resumed Gemini Live session. Implements the
+// "memory injection on reconnect" pattern from NeurIPS 2024 streaming video
+// understanding research and Google Live API best-practices documentation.
+func (c *Controller) buildTemporalResumeContext(sessionID string) string {
+	if c.temporal == nil {
+		return ""
+	}
+	incidents, err := c.temporal.GetActiveIncidents(sessionID)
+	if err != nil || len(incidents) == 0 {
+		return ""
+	}
+	lines := []string{
+		"TEMPORAL CONTEXT RESUME [" + time.Now().Format("2006-01-02T15:04:05Z07:00") + "]",
+		"The following incidents were active when the session was interrupted.",
+		"Treat these as known, ongoing incidents unless you observe them resolved:",
+	}
+	for _, inc := range incidents {
+		line := "- " + string(inc.Severity) + " | " + string(inc.LifecycleState) +
+			" | " + inc.HazardType + " | started " + inc.StartAt.Format("15:04:05")
+		if len(inc.InvolvedCameras) > 0 {
+			line += " | camera: " + strings.Join(inc.InvolvedCameras, ",")
+		}
+		if _, ev, evErr := c.temporal.GetIncidentWithEvidence(inc.IncidentID); evErr == nil && ev.IncidentID != "" {
+			line += " | trend: " + ev.RiskTrend
+			if ev.SPRTConfirmed {
+				line += " | SPRT-confirmed"
+			}
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (c *Controller) handleGeminiText(sessionID, text string) {
 	slog.Debug("gemini text response", "session_id", sessionID, "text", text)
 
@@ -642,6 +889,14 @@ func (c *Controller) handleGeminiTranscript(sessionID, speaker, text string) {
 		"text", text,
 	)
 
+	if c.onResponse != nil && text != "" {
+		c.onResponse(sessionID, &AgentResponse{
+			Type:    "transcript",
+			Text:    text,
+			Speaker: speaker,
+		})
+	}
+
 	if speaker == "user" && text != "" {
 		intent := c.intentParser.Parse(text)
 		if intent.Type != types.IntentConversation {
@@ -669,8 +924,51 @@ func (c *Controller) executeToolCall(sessionID string, call genai.FunctionCall) 
 		return c.toolLogIssue(sessionID, call.Args)
 	case "get_inspection_status":
 		return c.toolGetStatus(sessionID)
+	case "get_incidents":
+		return c.toolGetIncidents(sessionID)
 	default:
 		return map[string]any{"error": "unknown tool: " + call.Name}
+	}
+}
+
+func (c *Controller) toolGetIncidents(sessionID string) map[string]any {
+	if c.temporal == nil {
+		return map[string]any{"status": "temporal_engine_unavailable"}
+	}
+
+	incidents, err := c.temporal.GetActiveIncidents(sessionID)
+	if err != nil {
+		return map[string]any{"error": err.Error()}
+	}
+
+	type incidentView struct {
+		ID             string `json:"id"`
+		HazardType     string `json:"hazard_type"`
+		Severity       string `json:"severity"`
+		LifecycleState string `json:"lifecycle_state"`
+		StartAt        string `json:"start_at"`
+		LastSeen       string `json:"last_seen"`
+	}
+
+	out := make([]incidentView, 0, len(incidents))
+	for _, inc := range incidents {
+		lastSeen := ""
+		if _, evidence, err := c.temporal.GetIncidentWithEvidence(inc.IncidentID); err == nil {
+			lastSeen = evidence.LastSeen.Format(time.RFC3339)
+		}
+		out = append(out, incidentView{
+			ID:             inc.IncidentID,
+			HazardType:     inc.HazardType,
+			Severity:       string(inc.Severity),
+			LifecycleState: string(inc.LifecycleState),
+			StartAt:        inc.StartAt.Format(time.RFC3339),
+			LastSeen:       lastSeen,
+		})
+	}
+
+	return map[string]any{
+		"status":    "ok",
+		"incidents": out,
 	}
 }
 
@@ -818,11 +1116,21 @@ func (c *Controller) toolGetStatus(sessionID string) map[string]any {
 		return map[string]any{"error": "no active session"}
 	}
 
-	return map[string]any{
+	result := map[string]any{
 		"mode":         sess.InspectionMode,
 		"hazard_count": len(sess.Hazards),
 		"risk_score":   c.hazards.CalculateRiskScore(sess.Hazards),
 		"risk_level":   string(c.hazards.CalculateRiskLevel(sess.Hazards)),
 		"state":        string(sess.State),
 	}
+
+	if c.temporal != nil {
+		if summary, err := c.temporal.GetIncidentSummary(sessionID, time.Now().Add(-1*time.Hour), time.Now()); err == nil {
+			result["incident_count"] = summary.IncidentCount
+			result["incident_by_severity"] = summary.BySeverity
+			result["incident_by_hazard_type"] = summary.ByHazardType
+		}
+	}
+
+	return result
 }

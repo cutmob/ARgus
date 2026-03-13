@@ -41,9 +41,15 @@ docker-build:
 docker-run:
 	docker run -p 8080:8080 --env-file .env argus-backend
 
-# Development
-dev: deps
+# Development — starts backend + frontend together
+dev:
+	@bash dev.sh
+
+dev-backend:
 	go run ./cmd/server
+
+dev-frontend:
+	cd frontend/web-client && npm run dev
 
 # Clean
 clean:

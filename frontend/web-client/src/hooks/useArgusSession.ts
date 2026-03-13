@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { speakResponse } from "@/lib/tts";
-import type { ActionCard, AlertThreshold, Hazard, Overlay, Severity } from "@/lib/types";
+import { playAudioResponse, speakResponse, stopSpeaking } from "@/lib/tts";
+import type { ActionCard, AlertThreshold, Hazard, Incident, Overlay, Severity } from "@/lib/types";
 
 interface WebSocketMessage {
   type: string;
@@ -15,6 +15,8 @@ interface AgentResponsePayload {
   type: string;
   text?: string;
   voice?: string;
+  audio_data?: string;
+  speaker?: string;
   report_id?: string;
   hazards?: Hazard[];
   overlays?: Overlay[];
@@ -25,6 +27,12 @@ interface SessionAgentResponse {
   type: string;
   text: string;
   reportId?: string;
+  at: number;
+}
+
+interface SessionTranscript {
+  speaker: string;
+  text: string;
   at: number;
 }
 
@@ -79,13 +87,33 @@ export function useArgusSession() {
   const [voiceOutputEnabled, setVoiceOutputEnabled] = useState(true);
   const [alertThreshold, setAlertThresholdState] = useState<AlertThreshold>("high");
   const [lastAgentResponse, setLastAgentResponse] = useState<SessionAgentResponse | null>(null);
+  const [lastTranscript, setLastTranscript] = useState<SessionTranscript | null>(null);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
 
   const wsRef          = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout>();
   const voiceOutputEnabledRef = useRef(true);
   const alertThresholdRef = useRef<AlertThreshold>("high");
+  const lastSpokenRef = useRef<{ text: string; at: number } | null>(null);
   voiceOutputEnabledRef.current = voiceOutputEnabled;
   alertThresholdRef.current = alertThreshold;
+
+  const speakIfAllowed = useCallback((text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || !voiceOutputEnabledRef.current) {
+      setSpeaking(false);
+      return;
+    }
+    const normalized = trimmed.toLowerCase();
+    const lastSpoken = lastSpokenRef.current;
+    if (lastSpoken && lastSpoken.text === normalized && Date.now() - lastSpoken.at < 6000) {
+      setSpeaking(false);
+      return;
+    }
+    lastSpokenRef.current = { text: normalized, at: Date.now() };
+    setSpeaking(true);
+    speakResponse(trimmed, () => setSpeaking(false));
+  }, []);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -165,17 +193,20 @@ export function useArgusSession() {
 
       case "voice_response": {
         const data = msg.payload as { text: string };
-        if (!voiceOutputEnabledRef.current) {
-          setSpeaking(false);
-          break;
-        }
-        setSpeaking(true);
-        speakResponse(data.text, () => setSpeaking(false));
+        speakIfAllowed(data.text);
         break;
       }
 
       case "agent_response": {
         const data = msg.payload as AgentResponsePayload;
+        if (data.type === "transcript" && data.text) {
+          setLastTranscript({
+            speaker: data.speaker || "model",
+            text: data.text,
+            at: Date.now(),
+          });
+          break;
+        }
         const hazardPayload = Array.isArray(data.hazards) ? data.hazards : [];
         if (Array.isArray(data.hazards) && data.hazards.length > 0) {
           setHazards((prev) => {
@@ -204,13 +235,25 @@ export function useArgusSession() {
           });
         }
         const spoken = data.voice || data.text;
+        const audioData = typeof data.audio_data === "string" ? data.audio_data.trim() : "";
         const findingsAllowed =
           hazardPayload.length === 0 || shouldSpeakFinding(hazardPayload, alertThresholdRef.current);
-        if (spoken && voiceOutputEnabledRef.current && findingsAllowed) {
+        if (audioData && voiceOutputEnabledRef.current && findingsAllowed) {
           setSpeaking(true);
-          speakResponse(spoken, () => setSpeaking(false));
-        } else if (spoken) {
+          playAudioResponse(audioData, () => setSpeaking(false));
+        } else if (spoken && voiceOutputEnabledRef.current && findingsAllowed) {
+          speakIfAllowed(spoken);
+        } else if (spoken || audioData) {
+          stopSpeaking();
           setSpeaking(false);
+        }
+        break;
+      }
+
+      case "incidents_update": {
+        const incoming = msg.payload as Incident[];
+        if (Array.isArray(incoming)) {
+          setIncidents(incoming);
         }
         break;
       }
@@ -221,6 +264,7 @@ export function useArgusSession() {
 
       case "inspection_stopped":
         setIsInspecting(false);
+        setIncidents([]);
         break;
     }
   }, []);
@@ -243,6 +287,15 @@ export function useArgusSession() {
       message.set(frameData, 1);
       wsRef.current?.send(message.buffer);
     });
+  }, []);
+
+  const sendAudio = useCallback((chunk: Uint8Array) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || chunk.byteLength === 0) return;
+    const typeByte = new Uint8Array([0x02]);
+    const message = new Uint8Array(typeByte.length + chunk.length);
+    message.set(typeByte, 0);
+    message.set(chunk, 1);
+    wsRef.current.send(message.buffer);
   }, []);
 
   const sendCommand = useCallback(
@@ -330,6 +383,11 @@ export function useArgusSession() {
     setRiskLevel("low");
   }, []);
 
+  const interruptSpeech = useCallback(() => {
+    stopSpeaking();
+    setSpeaking(false);
+  }, []);
+
   const resetAuth = useCallback(() => {
     setUnauthorized(false);
     connect();
@@ -349,7 +407,10 @@ export function useArgusSession() {
     voiceOutputEnabled,
     alertThreshold,
     lastAgentResponse,
+    lastTranscript,
+    incidents,
     sendFrame,
+    sendAudio,
     startInspection,
     stopInspection,
     switchMode,
@@ -357,6 +418,7 @@ export function useArgusSession() {
     requestActions,
     sendNaturalLanguageCommand,
     clearHazards,
+    interruptSpeech,
     setVoiceOutputEnabled,
     setAlertThreshold,
     updatePreferences,

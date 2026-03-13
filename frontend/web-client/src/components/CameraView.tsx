@@ -1,23 +1,30 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
+import { EventPillOverlay } from "@/components/EventPillOverlay";
 import { HazardOverlay, type GlassMode } from "@/components/HazardOverlay";
-import type { Overlay } from "@/lib/types";
+import type { Hazard, Overlay } from "@/lib/types";
 
 interface CameraViewProps {
+  hazards: Hazard[];
   overlays: Overlay[];
   overlaysVisible?: boolean;
   glassMode?: GlassMode;
   videoSource?: string | null;
   onFrame: (data: Blob) => void;
+  pillExpandMode?: "click" | "tap" | "none";
+  pillPlacementMode?: "follow" | "stack-top-left";
 }
 
 export function CameraView({
+  hazards,
   overlays,
   overlaysVisible = true,
   glassMode = "dark",
   videoSource,
   onFrame,
+  pillExpandMode = "click",
+  pillPlacementMode = "follow",
 }: CameraViewProps) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -143,6 +150,14 @@ export function CameraView({
       <canvas ref={canvasRef} className="hidden" />
 
       <HazardOverlay overlays={overlays} visible={overlaysVisible} glassMode={glassMode} />
+      <EventPillOverlay
+        hazards={hazards}
+        overlays={overlays}
+        visible={overlaysVisible}
+        glassMode={glassMode}
+        expandMode={pillExpandMode}
+        placementMode={pillPlacementMode}
+      />
 
       <div className="feed-corner feed-corner-tl" />
       <div className="feed-corner feed-corner-tr" />

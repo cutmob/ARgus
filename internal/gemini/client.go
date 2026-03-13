@@ -13,7 +13,7 @@ import (
 
 const (
 	// Latest Gemini model supporting the Live API (bidirectional streaming).
-	defaultLiveModel = "gemini-2.5-flash-native-audio-preview-12-2025"
+	defaultLiveModel = "gemini-live-2.5-flash-native-audio"
 
 	// Standard content model for one-shot frame analysis.
 	defaultContentModel = "gemini-2.5-flash"
@@ -89,9 +89,9 @@ func (c *Client) AnalyzeFrame(ctx context.Context, req types.GeminiRequest) (*ty
 	parts = append(parts, genai.NewPartFromText(prompt))
 
 	config := &genai.GenerateContentConfig{
-		Temperature:      genai.Ptr(float32(0.2)),
-		MaxOutputTokens:  2048,
-		ResponseMIMEType: "application/json",
+		Temperature:        genai.Ptr(float32(0.2)),
+		MaxOutputTokens:    2048,
+		ResponseMIMEType:   "application/json",
 		ResponseJsonSchema: hazardResponseSchema(),
 	}
 

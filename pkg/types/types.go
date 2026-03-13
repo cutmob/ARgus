@@ -41,24 +41,36 @@ type BBox struct {
 	Height float64 `json:"height"`
 }
 
+// ConfidenceSample records a single confidence observation with its timestamp.
+// A history of samples allows the temporal engine to compute real trend slopes
+// rather than relying on a single scalar value.
+type ConfidenceSample struct {
+	Confidence float64   `json:"confidence"`
+	Timestamp  time.Time `json:"timestamp"`
+}
+
 // Hazard represents a detected safety issue.
 type Hazard struct {
-	ID                 string    `json:"id"`
-	RuleID             string    `json:"rule_id"`
-	Description        string    `json:"description"`
-	Severity           Severity  `json:"severity"`
-	Confidence         float64   `json:"confidence"`
-	Occurrences        int       `json:"occurrences,omitempty"`
-	FirstSeenAt        time.Time `json:"first_seen_at,omitempty"`
-	LastSeenAt         time.Time `json:"last_seen_at,omitempty"`
-	PersistenceSeconds int       `json:"persistence_seconds,omitempty"`
-	RiskTrend          string    `json:"risk_trend,omitempty"`
-	Location           string    `json:"location,omitempty"`
-	BBox               *BBox     `json:"bbox,omitempty"`
-	FrameID            string    `json:"frame_id,omitempty"`
-	ImageURL           string    `json:"image_url,omitempty"`
-	CameraID           string    `json:"camera_id,omitempty"`
-	DetectedAt         time.Time `json:"detected_at"`
+	ID                 string             `json:"id"`
+	RuleID             string             `json:"rule_id"`
+	Description        string             `json:"description"`
+	Severity           Severity           `json:"severity"`
+	Confidence         float64            `json:"confidence"`
+	Occurrences        int                `json:"occurrences,omitempty"`
+	FirstSeenAt        time.Time          `json:"first_seen_at,omitempty"`
+	LastSeenAt         time.Time          `json:"last_seen_at,omitempty"`
+	PersistenceSeconds int                `json:"persistence_seconds,omitempty"`
+	RiskTrend          string             `json:"risk_trend,omitempty"`
+	// ConfidenceHistory holds the rolling window of per-observation confidence
+	// values used by the temporal engine to compute real trend slopes (escalating,
+	// stable, improving) and SPRT log-likelihood accumulation.
+	ConfidenceHistory  []ConfidenceSample `json:"confidence_history,omitempty"`
+	Location           string             `json:"location,omitempty"`
+	BBox               *BBox              `json:"bbox,omitempty"`
+	FrameID            string             `json:"frame_id,omitempty"`
+	ImageURL           string             `json:"image_url,omitempty"`
+	CameraID           string             `json:"camera_id,omitempty"`
+	DetectedAt         time.Time          `json:"detected_at"`
 }
 
 type ActionCard struct {

@@ -3,8 +3,10 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useArgusSession } from "@/hooks/useArgusSession";
 import { useCameraContext } from "@/hooks/useCameraContext";
+import { useLiveAudioInput } from "@/hooks/useLiveAudioInput";
 import { useWakeWord } from "@/hooks/useWakeWord";
 import { speakResponse } from "@/lib/tts";
+import { resolveVoiceIntent } from "@/lib/voiceIntent";
 import { INSPECTION_MODES, modeLabel } from "@/lib/modes";
 import { ContextSelector } from "@/components/ContextSelector";
 import { DemoGate } from "@/components/DemoGate";
@@ -14,8 +16,23 @@ import { ARSession } from "@/components/session-ar/ARSession";
 import type { GlassMode } from "@/components/HazardOverlay";
 import type { CameraContext } from "@/lib/cameraContext";
 import type { AlertThreshold } from "@/lib/types";
+import { IncidentTimeline } from "@/components/IncidentTimeline";
 
 const ALERT_THRESHOLD_OPTIONS: AlertThreshold[] = ["off", "low", "medium", "high", "critical"];
+const ALERT_THRESHOLD_LABELS: Record<AlertThreshold, string> = {
+  off: "Voice Off",
+  low: "Low+",
+  medium: "Medium+",
+  high: "High+",
+  critical: "Critical",
+};
+const ALERT_THRESHOLD_HELPERS: Record<AlertThreshold, string> = {
+  off: "Never speak findings automatically",
+  low: "Speaks any visible issue worth noting",
+  medium: "Speaks clear concerns needing follow-up",
+  high: "Speaks serious hazards needing prompt action",
+  critical: "Speaks only imminent life-safety danger",
+};
 
 export default function SessionPage() {
   const [inspectionMode, setInspectionMode] = useState("construction");
@@ -29,6 +46,7 @@ export default function SessionPage() {
   const [latestReport, setLatestReport] = useState<{ text: string; reportId?: string; at: number } | null>(null);
   const [cctvVoiceInputEnabled, setCctvVoiceInputEnabled] = useState(false);
   const [cctvVoiceOutputEnabled, setCctvVoiceOutputEnabled] = useState(false);
+  const [arVoiceInputEnabled, setArVoiceInputEnabled] = useState(true);
   const [alertThreshold, setAlertThreshold] = useState<AlertThreshold>("high");
   const [glassMode, setGlassMode] = useState<GlassMode>("dark");
   const [demoContext, setDemoContext] = useState<CameraContext>("cctv");
@@ -36,6 +54,7 @@ export default function SessionPage() {
   const [videoName, setVideoName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [manualContext, setManualContext] = useState<CameraContext | null>(null);
+  const handledUiTranscriptAtRef = useRef(0);
 
   useEffect(() => {
     setGated(!localStorage.getItem("argus_demo_token"));
@@ -46,6 +65,7 @@ export default function SessionPage() {
     const savedGlassMode = localStorage.getItem("argus_glass_mode");
     const savedCctvVoiceInput = localStorage.getItem("argus_cctv_voice_input");
     const savedCctvVoiceOutput = localStorage.getItem("argus_cctv_voice_output");
+    const savedArVoiceInput = localStorage.getItem("argus_ar_voice_input");
     if (savedMode) setInspectionMode(savedMode);
     if (savedContext) {
       setDemoContext(savedContext);
@@ -64,21 +84,20 @@ export default function SessionPage() {
     if (savedGlassMode === "dark" || savedGlassMode === "light") setGlassMode(savedGlassMode);
     if (savedCctvVoiceInput) setCctvVoiceInputEnabled(savedCctvVoiceInput === "true");
     if (savedCctvVoiceOutput) setCctvVoiceOutputEnabled(savedCctvVoiceOutput === "true");
+    if (savedArVoiceInput) setArVoiceInputEnabled(savedArVoiceInput === "true");
   }, []);
   const session = useArgusSession();
   const { context, detecting } = useCameraContext();
 
-  // Wake word only starts — never stops. Stops require an explicit voice command
-  // ("stop", "end") so that saying "argus" during an active session doesn't
-  // accidentally interrupt it (e.g. "argus, what do you see?").
   const handleWake = useCallback(() => {
+    session.interruptSpeech();
     if (!session.isInspecting) {
       session.startInspection(inspectionMode);
       speakResponse("On it.");
     }
   }, [session, inspectionMode]);
 
-  const wakeWordEnabled = (manualContext ?? context) !== "ar";
+  const wakeWordEnabled = !session.isInspecting && (manualContext ?? context) === "cctv";
   useWakeWord({ onWake: handleWake, word: "argus", enabled: wakeWordEnabled });
 
   // Toggle overlays with "O" key (non-AR modes)
@@ -127,6 +146,14 @@ export default function SessionPage() {
   }, [session.lastAgentResponse, reportFormat]);
 
   const activeContext = manualContext ?? context;
+  const liveAudioEnabled =
+    (activeContext === "ar" && arVoiceInputEnabled) ||
+    activeContext === "smartphone" ||
+    (activeContext === "cctv" && cctvVoiceInputEnabled);
+  const { active: liveAudioActive, supported: liveAudioSupported } = useLiveAudioInput({
+    enabled: liveAudioEnabled,
+    onChunk: session.sendAudio,
+  });
 
   useEffect(() => {
     if (activeContext === "cctv") {
@@ -140,17 +167,6 @@ export default function SessionPage() {
     session.setAlertThreshold(alertThreshold);
     localStorage.setItem("argus_alert_threshold", alertThreshold);
   }, [alertThreshold, session.setAlertThreshold]);
-
-  useEffect(() => {
-    if (activeContext !== "ar" && activeContext !== "smartphone") return;
-    if (!navigator.mediaDevices?.getUserMedia) return;
-    navigator.mediaDevices
-      .getUserMedia({ audio: true })
-      .then((stream) => {
-        stream.getTracks().forEach((t) => t.stop());
-      })
-      .catch(() => {});
-  }, [activeContext]);
 
   if (gated || session.unauthorized) {
     return (
@@ -206,6 +222,55 @@ export default function SessionPage() {
     localStorage.setItem("argus_glass_mode", next);
   };
 
+  useEffect(() => {
+    const transcript = session.lastTranscript;
+    if (!transcript || transcript.speaker !== "user") return;
+    if (transcript.at <= handledUiTranscriptAtRef.current) return;
+    handledUiTranscriptAtRef.current = transcript.at;
+
+    const intent = resolveVoiceIntent(transcript.text);
+    switch (intent.type) {
+      case "open_report":
+        setReportViewOpen(true);
+        setReportTile(null);
+        break;
+      case "close_report":
+        setReportViewOpen(false);
+        break;
+      case "toggle_overlays":
+        setOverlaysVisible((v) => !v);
+        break;
+      case "show_incidents":
+        setOverlaysVisible(true);
+        break;
+      case "hide_incidents":
+        setOverlaysVisible(false);
+        break;
+      case "set_glass_light":
+        setSharedGlassMode("light");
+        break;
+      case "set_glass_dark":
+        setSharedGlassMode("dark");
+        break;
+      case "mute_voice":
+        if (activeContext === "cctv") {
+          setCctvVoiceOutputEnabled(false);
+          localStorage.setItem("argus_cctv_voice_output", "false");
+        }
+        session.setVoiceOutputEnabled(false);
+        break;
+      case "unmute_voice":
+        if (activeContext === "cctv") {
+          setCctvVoiceOutputEnabled(true);
+          localStorage.setItem("argus_cctv_voice_output", "true");
+        }
+        session.setVoiceOutputEnabled(true);
+        break;
+      default:
+        break;
+    }
+  }, [activeContext, session, setSharedGlassMode]);
+
   const sessionWithFormat = {
     ...session,
     generateReport: () => session.generateReport(reportFormat),
@@ -235,25 +300,26 @@ export default function SessionPage() {
         </button>
         <button
           onClick={() => setControlsOpen((v) => !v)}
-          className="liquid-glass liquid-float liquid-pill liquid-enter h-8 px-3 font-mono text-[10px] tracking-[0.14em] uppercase liquid-meta"
+          className="liquid-glass liquid-float liquid-pill liquid-enter min-w-[14rem] h-8 px-3 font-mono text-[10px] tracking-[0.14em] uppercase liquid-meta flex items-center justify-between gap-2"
         >
-          {demoContext} • {modeLabel(inspectionMode)} ▾
+          <span className="truncate">{demoContext} • {modeLabel(inspectionMode)}</span>
+          <span>▾</span>
         </button>
       </div>
 
       {controlsOpen && (
-        <div className="liquid-glass liquid-float liquid-enter mt-2 w-80 rounded-2xl p-3 space-y-2.5">
+        <div className="liquid-glass liquid-float liquid-enter mt-2 w-[24rem] max-w-[calc(100vw-1rem)] rounded-2xl p-3 space-y-2.5">
           <div className="grid grid-cols-2 gap-2">
             <div className="relative">
               <button
                 onClick={() => setOpenSelect((v) => (v === "context" ? null : "context"))}
-                className="liquid-glass liquid-float liquid-pill h-8 w-full px-2 font-mono text-[10px] uppercase liquid-title flex items-center justify-between"
+                className="liquid-glass liquid-float liquid-pill h-9 w-full px-3 font-mono text-[10px] uppercase liquid-title flex items-center justify-between gap-2"
               >
-                <span>{demoContext}</span>
+                <span className="truncate">{demoContext === "smartphone" ? "mobile" : demoContext}</span>
                 <span className="liquid-meta">▾</span>
               </button>
               {openSelect === "context" && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-10 liquid-glass liquid-float liquid-enter liquid-menu liquid-menu-popover">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-10 min-w-full liquid-glass liquid-float liquid-enter liquid-menu liquid-menu-popover">
                   {(["cctv", "ar", "smartphone"] as CameraContext[]).map((ctx) => (
                     <button
                       key={ctx}
@@ -262,7 +328,7 @@ export default function SessionPage() {
                         setManualContext(ctx);
                         setOpenSelect(null);
                       }}
-                      className={`liquid-menu-item font-mono text-[10px] uppercase ${
+                      className={`liquid-menu-item liquid-menu-item-wide font-mono text-[10px] uppercase ${
                         demoContext === ctx ? "liquid-menu-item-active" : "liquid-meta"
                       }`}
                     >
@@ -275,13 +341,13 @@ export default function SessionPage() {
             <div className="relative">
               <button
                 onClick={() => setOpenSelect((v) => (v === "mode" ? null : "mode"))}
-                className="liquid-glass liquid-float liquid-pill h-8 w-full px-2 font-mono text-[10px] uppercase liquid-title flex items-center justify-between"
+                className="liquid-glass liquid-float liquid-pill h-9 w-full px-3 font-mono text-[10px] uppercase liquid-title flex items-center justify-between gap-2"
               >
-                <span>{modeLabel(inspectionMode)}</span>
+                <span className="truncate">{modeLabel(inspectionMode)}</span>
                 <span className="liquid-meta">▾</span>
               </button>
               {openSelect === "mode" && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-10 max-h-44 overflow-auto liquid-glass liquid-float liquid-enter liquid-menu liquid-menu-popover">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-10 min-w-full max-h-52 overflow-auto liquid-glass liquid-float liquid-enter liquid-menu liquid-menu-popover">
                   {INSPECTION_MODES.map((m) => (
                     <button
                       key={m}
@@ -289,7 +355,7 @@ export default function SessionPage() {
                         handleModeChange(m);
                         setOpenSelect(null);
                       }}
-                      className={`liquid-menu-item font-mono text-[10px] uppercase ${
+                      className={`liquid-menu-item liquid-menu-item-wide font-mono text-[10px] uppercase ${
                         inspectionMode === m ? "liquid-menu-item-active" : "liquid-meta"
                       }`}
                     >
@@ -301,17 +367,17 @@ export default function SessionPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-2">
+          <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.4fr)_auto_auto_auto] gap-2">
             <div className="relative">
               <button
                 onClick={() => setOpenSelect((v) => (v === "format" ? null : "format"))}
-                className="liquid-glass liquid-float liquid-pill h-8 w-full px-2 font-mono text-[10px] uppercase liquid-title flex items-center justify-between"
+                className="liquid-glass liquid-float liquid-pill h-9 w-full px-3 font-mono text-[10px] uppercase liquid-title flex items-center justify-between gap-2"
               >
                 <span>{reportFormat}</span>
                 <span className="liquid-meta">▾</span>
               </button>
               {openSelect === "format" && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-10 liquid-glass liquid-float liquid-enter liquid-menu liquid-menu-popover">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-10 min-w-full liquid-glass liquid-float liquid-enter liquid-menu liquid-menu-popover">
                   {["pdf", "word", "txt", "json", "csv", "html", "webhook"].map((f) => (
                     <button
                       key={f}
@@ -320,7 +386,7 @@ export default function SessionPage() {
                         localStorage.setItem("argus_report_format", f);
                         setOpenSelect(null);
                       }}
-                      className={`liquid-menu-item font-mono text-[10px] uppercase ${
+                      className={`liquid-menu-item liquid-menu-item-wide font-mono text-[10px] uppercase ${
                         reportFormat === f ? "liquid-menu-item-active" : "liquid-meta"
                       }`}
                     >
@@ -333,13 +399,13 @@ export default function SessionPage() {
             <div className="relative">
               <button
                 onClick={() => setOpenSelect((v) => (v === "threshold" ? null : "threshold"))}
-                className="liquid-glass liquid-float liquid-pill h-8 w-full px-2 font-mono text-[10px] uppercase liquid-title flex items-center justify-between"
+                className="liquid-glass liquid-float liquid-pill h-9 w-full px-3 font-mono text-[10px] uppercase liquid-title flex items-center justify-between gap-2"
               >
-                <span>{alertThreshold}</span>
+                <span className="truncate">{ALERT_THRESHOLD_LABELS[alertThreshold]}</span>
                 <span className="liquid-meta">▾</span>
               </button>
               {openSelect === "threshold" && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-10 liquid-glass liquid-float liquid-enter liquid-menu liquid-menu-popover">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-10 min-w-[18rem] liquid-glass liquid-float liquid-enter liquid-menu liquid-menu-popover">
                   {ALERT_THRESHOLD_OPTIONS.map((threshold) => (
                     <button
                       key={threshold}
@@ -347,11 +413,14 @@ export default function SessionPage() {
                         setAlertThreshold(threshold);
                         setOpenSelect(null);
                       }}
-                      className={`liquid-menu-item font-mono text-[10px] uppercase ${
+                      className={`liquid-menu-item liquid-menu-item-wide flex items-start justify-between gap-3 font-mono text-[10px] uppercase ${
                         alertThreshold === threshold ? "liquid-menu-item-active" : "liquid-meta"
                       }`}
                     >
-                      {threshold}
+                      <span>{ALERT_THRESHOLD_LABELS[threshold]}</span>
+                      <span className="normal-case tracking-normal text-right text-[10px] opacity-80">
+                        {ALERT_THRESHOLD_HELPERS[threshold]}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -359,14 +428,14 @@ export default function SessionPage() {
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="liquid-glass liquid-float liquid-pill h-8 px-3 font-mono text-[10px] tracking-[0.14em] uppercase liquid-title"
+              className="liquid-glass liquid-float liquid-pill h-9 px-3 font-mono text-[10px] tracking-[0.14em] uppercase liquid-title"
               title={videoName || "Upload demo MP4"}
             >
               Upload
             </button>
             <button
               onClick={() => setSharedGlassMode(glassMode === "dark" ? "light" : "dark")}
-              className="liquid-glass liquid-float liquid-pill h-8 px-3 font-mono text-[10px] tracking-[0.14em] uppercase liquid-title"
+              className="liquid-glass liquid-float liquid-pill h-9 px-3 font-mono text-[10px] tracking-[0.14em] uppercase liquid-title"
               title="Toggle glass theme"
             >
               {glassMode === "dark" ? "Dark" : "Light"}
@@ -376,7 +445,7 @@ export default function SessionPage() {
                 setReportViewOpen(true);
                 setControlsOpen(false);
               }}
-              className="liquid-glass liquid-float liquid-pill h-8 px-3 font-mono text-[10px] tracking-[0.14em] uppercase liquid-title"
+              className="liquid-glass liquid-float liquid-pill h-9 px-3 font-mono text-[10px] tracking-[0.14em] uppercase liquid-title"
             >
               Report
             </button>
@@ -438,12 +507,25 @@ export default function SessionPage() {
     </div>
   );
 
+  const incidentTimeline = (
+    <div className="fixed inset-0 pointer-events-none z-30">
+      <div className="relative h-full w-full">
+        <IncidentTimeline
+          incidents={session.incidents}
+          visible={overlaysVisible}
+          glassMode={glassMode}
+        />
+      </div>
+    </div>
+  );
+
   if (activeContext === "smartphone") {
     return (
       <>
         {controlLauncher}
         {reportTileView}
         {reportPanelView}
+        {incidentTimeline}
         <SmartphoneSession
           session={sessionWithFormat}
           mode={inspectionMode}
@@ -463,11 +545,19 @@ export default function SessionPage() {
         {controlLauncher}
         {reportTileView}
         {reportPanelView}
+        {incidentTimeline}
         <ARSession
           session={sessionWithFormat}
           mode={inspectionMode}
           onModeChange={handleModeChange}
           videoSource={videoSource}
+          audioInputEnabled={arVoiceInputEnabled}
+          audioInputActive={liveAudioActive && activeContext === "ar"}
+          audioInputSupported={liveAudioSupported}
+          onAudioInputChange={(enabled: boolean) => {
+            setArVoiceInputEnabled(enabled);
+            localStorage.setItem("argus_ar_voice_input", String(enabled));
+          }}
           glassMode={glassMode}
           onGlassModeChange={setSharedGlassMode}
           onOpenReportView={() => {
@@ -486,6 +576,7 @@ export default function SessionPage() {
       {controlLauncher}
       {reportTileView}
       {reportPanelView}
+      {incidentTimeline}
       <CCTVSession
         session={sessionWithFormat}
         mode={inspectionMode}
@@ -495,6 +586,7 @@ export default function SessionPage() {
         glassMode={glassMode}
         onGlassModeChange={setSharedGlassMode}
         voiceInputEnabled={cctvVoiceInputEnabled}
+        voiceInputSupported={liveAudioSupported}
         voiceOutputEnabled={cctvVoiceOutputEnabled}
         onVoiceInputChange={(enabled: boolean) => {
           setCctvVoiceInputEnabled(enabled);

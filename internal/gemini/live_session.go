@@ -11,16 +11,17 @@ import (
 
 // LiveSession wraps a single Gemini Live API bidirectional streaming session.
 type LiveSession struct {
-	mu              sync.Mutex
-	session         *genai.Session
-	sessionID       string
-	model           string
-	active          bool
-	resumeHandle    string
-	onText          func(sessionID, text string)
-	onAudio         func(sessionID string, data []byte)
-	onToolCall      func(sessionID string, calls []*genai.FunctionCall)
-	onTranscript    func(sessionID, speaker, text string)
+	mu           sync.Mutex
+	session      *genai.Session
+	sessionID    string
+	model        string
+	active       bool
+	resumeHandle string
+	onText       func(sessionID, text string)
+	onAudio      func(sessionID string, data []byte)
+	onToolCall   func(sessionID string, calls []*genai.FunctionCall)
+	onTranscript func(sessionID, speaker, text string)
+	onGoAway     func(sessionID, handle string)
 }
 
 // LiveSessionConfig holds everything needed to start a Live session.
@@ -32,6 +33,10 @@ type LiveSessionConfig struct {
 	OnAudio        func(sessionID string, data []byte)
 	OnToolCall     func(sessionID string, calls []*genai.FunctionCall)
 	OnTranscript   func(sessionID, speaker, text string)
+	// OnGoAway is called when the server sends a GoAway signal indicating an
+	// imminent disconnection. The handler receives the current resumption handle
+	// so the caller can trigger a reconnect with prior temporal state injected.
+	OnGoAway       func(sessionID, handle string)
 }
 
 // NewLiveSession connects to the Gemini Live API and starts the receive loop.
@@ -84,6 +89,7 @@ func NewLiveSession(ctx context.Context, client *Client, cfg LiveSessionConfig) 
 		onAudio:      cfg.OnAudio,
 		onToolCall:   cfg.OnToolCall,
 		onTranscript: cfg.OnTranscript,
+		onGoAway:     cfg.OnGoAway,
 	}
 
 	slog.Info("live session connected",
@@ -267,5 +273,9 @@ func (ls *LiveSession) handleServerMessage(msg *genai.LiveServerMessage) {
 			"session_id", ls.sessionID,
 			"time_left", msg.GoAway.TimeLeft,
 		)
+		handle := ls.ResumeHandle()
+		if ls.onGoAway != nil {
+			ls.onGoAway(ls.sessionID, handle)
+		}
 	}
 }

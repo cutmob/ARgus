@@ -44,6 +44,25 @@ export interface Overlay {
   color: string;
 }
 
+// Incident is the temporal reasoning unit pushed from the backend after each
+// hazard ingest. Carries SPRT confirmation, lifecycle state, and trend data
+// for the IncidentTimeline panel.
+export interface Incident {
+  incident_id: string;
+  hazard_type: string;
+  severity: Severity;
+  lifecycle_state: "detected" | "persistent" | "escalated" | "acknowledged" | "resolved" | "recurring";
+  start_at: string;
+  last_seen?: string;
+  duration_seconds?: number;
+  rules_triggered?: string[];
+  peak_llr?: number;
+  sprt_confirmed?: boolean;
+  risk_trend?: string;
+  cameras?: string[];
+  snapshot_count?: number;
+}
+
 export interface InspectionReport {
   id: string;
   session_id: string;

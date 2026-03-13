@@ -2,9 +2,10 @@
 
 import { CameraView } from "@/components/CameraView";
 import type { GlassMode } from "@/components/HazardOverlay";
-import type { Overlay } from "@/lib/types";
+import type { Hazard, Overlay } from "@/lib/types";
 
 interface FeedGridProps {
+  hazards: Hazard[];
   overlays: Overlay[];
   overlaysVisible?: boolean;
   glassMode?: GlassMode;
@@ -22,6 +23,7 @@ const FEED_LABELS = [
 ];
 
 export function FeedGrid({
+  hazards,
   overlays,
   overlaysVisible = true,
   glassMode = "dark",
@@ -47,11 +49,13 @@ export function FeedGrid({
 
           {i === 0 ? (
             <CameraView
+              hazards={hazards}
               overlays={overlays}
               overlaysVisible={overlaysVisible}
               glassMode={glassMode}
               videoSource={videoSource}
               onFrame={onFrame}
+              pillExpandMode="click"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center" style={{ background: "#080808" }}>

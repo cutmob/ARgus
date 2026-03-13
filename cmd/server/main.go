@@ -20,6 +20,7 @@ import (
 	"github.com/cutmob/argus/internal/reporting"
 	"github.com/cutmob/argus/internal/session"
 	"github.com/cutmob/argus/internal/streaming"
+	"github.com/cutmob/argus/internal/temporal"
 	"github.com/cutmob/argus/internal/vision"
 	"github.com/cutmob/argus/pkg/types"
 )
@@ -48,6 +49,10 @@ func main() {
 	moduleLoader := inspection.NewModuleLoader(cfg.ModulesDir)
 	ruleEngine := inspection.NewRuleEngine(moduleLoader)
 	hazardDetector := inspection.NewHazardDetector(ruleEngine)
+
+	// Temporal incident engine: in-memory store with conservative default rules.
+	temporalEngine := temporal.NewEngine(nil, temporal.DefaultRules())
+	sessionMgr.SetTemporalEngine(temporalEngine)
 
 	// Vision pipeline
 	frameSampler := vision.NewFrameSampler(cfg.Vision.SampleIntervalMs)
@@ -80,6 +85,7 @@ func main() {
 		ReportBuilder:  reportBuilder,
 		ModuleLoader:   moduleLoader,
 		GeminiClient:   geminiClient,
+		TemporalEngine: temporalEngine,
 		OnResponse: func(sessionID string, resp *agent.AgentResponse) {
 			if wsServer == nil {
 				return

@@ -3,9 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { FeedGrid } from "./FeedGrid";
 import { ArgusIndicator } from "@/components/ArgusIndicator";
-import { useVoiceCommands } from "@/hooks/useVoiceCommands";
 import { INSPECTION_MODES, modeLabel } from "@/lib/modes";
-import { resolveVoiceIntent } from "@/lib/voiceIntent";
 import type { GlassMode } from "@/components/HazardOverlay";
 import type { ActionCard, Hazard, Overlay } from "@/lib/types";
 
@@ -33,6 +31,7 @@ interface CCTVSessionProps {
   glassMode?: GlassMode;
   onGlassModeChange?: (mode: GlassMode) => void;
   voiceInputEnabled: boolean;
+  voiceInputSupported: boolean;
   voiceOutputEnabled: boolean;
   onVoiceInputChange: (enabled: boolean) => void;
   onVoiceOutputChange: (enabled: boolean) => void;
@@ -61,6 +60,7 @@ export function CCTVSession({
   glassMode: externalGlassMode,
   onGlassModeChange,
   voiceInputEnabled,
+  voiceInputSupported,
   voiceOutputEnabled,
   onVoiceInputChange,
   onVoiceOutputChange,
@@ -106,47 +106,6 @@ export function CCTVSession({
     return () => window.removeEventListener("keydown", onKey);
   }, [session, mode]);
 
-  const handleVoiceCommand = useCallback(
-    (transcript: string) => {
-      const intent = resolveVoiceIntent(transcript);
-      switch (intent.type) {
-        case "start_inspection":
-          session.startInspection(mode);
-          break;
-        case "stop_inspection":
-          session.stopInspection();
-          break;
-        case "generate_report":
-          session.generateReport();
-          break;
-        case "operator_actions":
-          session.requestActions();
-          break;
-        case "switch_mode":
-          if (intent.mode) {
-            const matched = INSPECTION_MODES.find((m) => m === intent.mode);
-            if (matched) onModeChange(matched);
-          }
-          break;
-        case "set_glass_light":
-          setGlassMode("light");
-          break;
-        case "set_glass_dark":
-          setGlassMode("dark");
-          break;
-        default:
-          session.sendNaturalLanguageCommand?.(transcript);
-          break;
-      }
-    },
-    [session, mode, onModeChange, setGlassMode]
-  );
-
-  const { supported: voiceInputSupported } = useVoiceCommands({
-    onCommand: handleVoiceCommand,
-    enabled: voiceInputEnabled,
-  });
-
   const riskColor = RISK_COLOR[session.riskLevel] ?? "#4a4a4a";
   const hazardStr = session.hazards.length.toString().padStart(2, "0");
 
@@ -186,6 +145,7 @@ export function CCTVSession({
         {/* Feed grid */}
         <div className="flex-1 overflow-hidden">
           <FeedGrid
+            hazards={session.hazards}
             overlays={session.overlays}
             overlaysVisible={overlaysVisible}
             glassMode={glassMode}
@@ -272,6 +232,22 @@ export function CCTVSession({
                 }}
               >
                 OUT {voiceOutputEnabled ? "ON" : "OFF"}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+              <button
+                onClick={() => setGlassMode("dark")}
+                className="liquid-glass liquid-float liquid-pill font-display text-[10px] font-medium tracking-[0.12em] uppercase py-2 transition-colors duration-100"
+                style={{ color: glassMode === "dark" ? "#FF5F1F" : "#4a4a4a" }}
+              >
+                DARK
+              </button>
+              <button
+                onClick={() => setGlassMode("light")}
+                className="liquid-glass liquid-float liquid-pill font-display text-[10px] font-medium tracking-[0.12em] uppercase py-2 transition-colors duration-100"
+                style={{ color: glassMode === "light" ? "#FF5F1F" : "#4a4a4a" }}
+              >
+                LIGHT
               </button>
             </div>
             <button

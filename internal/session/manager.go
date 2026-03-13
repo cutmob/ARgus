@@ -8,15 +8,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cutmob/argus/internal/temporal"
 	"github.com/cutmob/argus/pkg/types"
 )
 
 // Manager handles all active inspection sessions.
 type Manager struct {
-	mu       sync.RWMutex
-	sessions map[string]*Session
-	profiles map[string]*EnvironmentProfile
-	store    *memoryStore
+	mu             sync.RWMutex
+	sessions       map[string]*Session
+	profiles       map[string]*EnvironmentProfile
+	store          *memoryStore
+	temporalEngine temporal.Engine
 }
 
 func NewManager(memoryFilePath string) *Manager {
@@ -33,6 +35,15 @@ func NewManager(memoryFilePath string) *Manager {
 		}
 	}
 	return mgr
+}
+
+// SetTemporalEngine wires a temporal incident engine into the session manager.
+// This is optional; if not set, sessions will function as before without
+// incident-level temporal reasoning.
+func (m *Manager) SetTemporalEngine(engine temporal.Engine) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.temporalEngine = engine
 }
 
 // Create initializes a new inspection session.
@@ -127,6 +138,8 @@ func (m *Manager) AddHazard(sessionID string, hazard types.Hazard) {
 			hazard.Occurrences = 1
 		}
 
+		var finalHazard *types.Hazard
+
 		if idx := findMatchingHazardIndex(s.Hazards, hazard); idx >= 0 {
 			existing := &s.Hazards[idx]
 			existing.LastSeenAt = now
@@ -159,16 +172,26 @@ func (m *Manager) AddHazard(sessionID string, hazard types.Hazard) {
 			if hazard.BBox != nil {
 				existing.BBox = hazard.BBox
 			}
+			finalHazard = existing
 		} else {
 			hazard.PersistenceSeconds = int(now.Sub(hazard.FirstSeenAt).Seconds())
 			hazard.RiskTrend = "new"
 			s.Hazards = append(s.Hazards, hazard)
+			finalHazard = &hazard
 		}
 		cameraID := hazard.CameraID
 		if cameraID == "" {
 			cameraID = s.CameraID
 		}
-		m.recordEnvironmentHazardLocked(cameraID, s.InspectionMode, hazard, now)
+		if finalHazard != nil {
+			m.recordEnvironmentHazardLocked(cameraID, s.InspectionMode, *finalHazard, now)
+			// Forward the aggregated hazard to the temporal engine, if configured.
+			if m.temporalEngine != nil {
+				// Use a copy so downstream mutation cannot affect session state.
+				hCopy := *finalHazard
+				m.temporalEngine.IngestHazard(sessionID, hCopy)
+			}
+		}
 		s.UpdatedAt = time.Now()
 	}
 }
