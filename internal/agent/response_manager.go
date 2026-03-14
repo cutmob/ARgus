@@ -12,8 +12,9 @@ type AgentResponse struct {
 	Speaker   string             `json:"speaker,omitempty"`
 	AudioData []byte             `json:"audio_data,omitempty"` // Raw PCM audio from Gemini (24kHz)
 	Overlays  []types.Overlay    `json:"overlays,omitempty"`
-	ReportID  string             `json:"report_id,omitempty"`
-	Hazards   []types.Hazard     `json:"hazards,omitempty"`
+	ReportID    string             `json:"report_id,omitempty"`
+	DownloadURL string             `json:"download_url,omitempty"` // e.g. /api/v1/reports/files/<filename>
+	Hazards     []types.Hazard     `json:"hazards,omitempty"`
 	Actions   []types.ActionCard `json:"actions,omitempty"`
 	// Incidents carries the serialized incident timeline pushed to the frontend
 	// after each hazard ingest so the IncidentTimeline panel stays current.
@@ -85,13 +86,14 @@ func (rm *ResponseManager) Error(text string) *AgentResponse {
 	}
 }
 
-// ReportReady notifies the client a report is available.
-func (rm *ResponseManager) ReportReady(reportID string, summary string) *AgentResponse {
+// ReportReady notifies the client a report is available for download.
+func (rm *ResponseManager) ReportReady(reportID, summary, downloadURL string) *AgentResponse {
 	return &AgentResponse{
-		Type:     "report",
-		Text:     summary,
-		Voice:    summary,
-		ReportID: reportID,
+		Type:        "report",
+		Text:        summary,
+		Voice:       summary,
+		ReportID:    reportID,
+		DownloadURL: downloadURL,
 	}
 }
 

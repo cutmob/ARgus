@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,10 +14,30 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024 * 64,
-	WriteBufferSize: 1024 * 64,
-	CheckOrigin:     func(r *http.Request) bool { return true },
+// newUpgrader creates a WebSocket upgrader that validates the Origin header
+// against the CORS_ALLOWED_ORIGIN env var. Falls back to allowing all origins
+// in development (when the env var is unset or "*").
+func newUpgrader() *websocket.Upgrader {
+	return &websocket.Upgrader{
+		ReadBufferSize:  1024 * 64,
+		WriteBufferSize: 1024 * 64,
+		CheckOrigin: func(r *http.Request) bool {
+			allowed := os.Getenv("CORS_ALLOWED_ORIGIN")
+			if allowed == "*" || allowed == "" {
+				return true
+			}
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true // non-browser clients
+			}
+			for _, o := range strings.Split(allowed, ",") {
+				if strings.TrimSpace(o) == origin {
+					return true
+				}
+			}
+			return false
+		},
+	}
 }
 
 // Config holds callbacks and dependencies for the WebSocket server.
@@ -52,21 +74,46 @@ func NewWebSocketServer(cfg Config) *WebSocketServer {
 }
 
 // HandleConnection upgrades HTTP to WebSocket and starts read/write pumps.
+// Authentication: if DemoTokens are configured, the client must send an "auth"
+// message with a valid token as the first text frame after connecting.
+// Legacy: tokens passed via ?token= query parameter are still accepted.
 func (ws *WebSocketServer) HandleConnection(w http.ResponseWriter, r *http.Request) {
-	// Demo token gate — reject connections without a valid token
-	if len(ws.cfg.DemoTokens) > 0 {
-		token := r.URL.Query().Get("token")
-		if !ws.cfg.DemoTokens[token] {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			slog.Warn("rejected connection: invalid demo token", "remote", r.RemoteAddr)
-			return
-		}
-	}
-
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := newUpgrader().Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("websocket upgrade failed", "error", err)
 		return
+	}
+
+	// Authenticate if demo tokens are configured
+	if len(ws.cfg.DemoTokens) > 0 {
+		token := r.URL.Query().Get("token") // legacy query-param support
+		if !ws.cfg.DemoTokens[token] {
+			// Require auth frame: {"type":"auth","token":"..."}
+			if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				conn.Close()
+				return
+			}
+			_, data, readErr := conn.ReadMessage()
+			if readErr != nil {
+				slog.Warn("auth read failed", "remote", r.RemoteAddr, "error", readErr)
+				_ = conn.WriteMessage(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "auth required"))
+				conn.Close()
+				return
+			}
+			var authMsg struct {
+				Type  string `json:"type"`
+				Token string `json:"token"`
+			}
+			if jsonErr := json.Unmarshal(data, &authMsg); jsonErr != nil || authMsg.Type != "auth" || !ws.cfg.DemoTokens[authMsg.Token] {
+				slog.Warn("rejected connection: invalid demo token", "remote", r.RemoteAddr)
+				_ = conn.WriteMessage(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "unauthorized"))
+				conn.Close()
+				return
+			}
+			_ = conn.SetReadDeadline(time.Time{}) // reset after auth
+		}
 	}
 
 	sessionID := r.URL.Query().Get("session_id")
@@ -98,11 +145,11 @@ func (ws *WebSocketServer) HandleConnection(w http.ResponseWriter, r *http.Reque
 		SessionID: sessionID,
 		Timestamp: time.Now(),
 	}
-	data, err := json.Marshal(welcome)
-	if err != nil {
-		slog.Error("failed to marshal welcome message", "error", err)
+	welcomeData, marshalErr := json.Marshal(welcome)
+	if marshalErr != nil {
+		slog.Error("failed to marshal welcome message", "error", marshalErr)
 	} else {
-		client.send <- data
+		client.send <- welcomeData
 	}
 
 	go ws.readPump(client)
@@ -153,10 +200,9 @@ func (ws *WebSocketServer) readPump(c *Client) {
 	}()
 
 	c.conn.SetReadLimit(1024 * 1024 * 10) // 10MB max message
-	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-		return nil
+		return c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	})
 
 	for {
@@ -188,15 +234,15 @@ func (ws *WebSocketServer) writePump(c *Client) {
 		select {
 		case msg, ok := <-c.send:
 			if !ok {
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 				return
 			}
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
@@ -224,7 +270,9 @@ func (ws *WebSocketServer) handleBinaryMessage(sessionID string, cameraID string
 			Timestamp: time.Now(),
 		}
 		if ws.cfg.OnFrame != nil {
-			go ws.cfg.OnFrame(sessionID, frame)
+			// Call synchronously — the controller's HandleFrame is non-blocking.
+			// Spawning uncontrolled goroutines here leaked when sessions ended.
+			ws.cfg.OnFrame(sessionID, frame)
 		}
 	case 0x02: // Audio chunk
 		chunk := types.AudioChunk{
@@ -236,7 +284,7 @@ func (ws *WebSocketServer) handleBinaryMessage(sessionID string, cameraID string
 			Timestamp:  time.Now(),
 		}
 		if ws.cfg.OnAudio != nil {
-			go ws.cfg.OnAudio(sessionID, chunk)
+			ws.cfg.OnAudio(sessionID, chunk)
 		}
 	}
 }

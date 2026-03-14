@@ -39,6 +39,9 @@ func hazardResponseSchema() map[string]any {
 	}
 }
 
+// BuildInspectionPrompt builds the system prompt for a Gemini session.
+// forLive=true omits the JSON OUTPUT CONTRACT (Live sessions use function
+// calling for hazard reporting, not JSON text output).
 func BuildInspectionPrompt(
 	modulePrompt string,
 	mode string,
@@ -47,9 +50,57 @@ func BuildInspectionPrompt(
 	runtimeContext string,
 	environmentFamiliarity string,
 ) string {
+	return buildPrompt(modulePrompt, mode, cameraID, alertThreshold, runtimeContext, environmentFamiliarity, false)
+}
+
+// BuildLiveInspectionPrompt builds the system prompt for a Gemini Live session.
+// It omits the JSON OUTPUT CONTRACT — Live sessions report hazards via function
+// calls (inspect_frame, highlight_hazard) not JSON text responses.
+func BuildLiveInspectionPrompt(
+	modulePrompt string,
+	mode string,
+	cameraID string,
+	alertThreshold string,
+	runtimeContext string,
+	environmentFamiliarity string,
+) string {
+	return buildPrompt(modulePrompt, mode, cameraID, alertThreshold, runtimeContext, environmentFamiliarity, true)
+}
+
+func buildPrompt(
+	modulePrompt string,
+	mode string,
+	cameraID string,
+	alertThreshold string,
+	runtimeContext string,
+	environmentFamiliarity string,
+	forLive bool,
+) string {
+	corePolicyLines := []string{
+		"- Ground every finding in visible evidence from the current scene.",
+		"- Do not invent unseen hazards, hidden causes, or standards that cannot be reasonably inferred.",
+		"- If evidence is ambiguous, reduce confidence and say what needs physical verification.",
+		"- Prefer precision over recall when evidence is weak.",
+		"- Default to silence. Speak only when there is a new actionable hazard at or above the spoken threshold, when the operator explicitly asks a question, or when confirming a direct operator command.",
+		"- Keep spoken responses short, single-turn, non-repetitive, and operationally useful.",
+		"- If the scene appears unchanged or only low-value observations are available, stay silent.",
+	}
+
+	if forLive {
+		corePolicyLines = append(corePolicyLines,
+			"- Report every confirmed hazard by calling inspect_frame. Call highlight_hazard to draw a bounding box overlay for any hazard you can spatially localize.",
+			"- Do not repeat previously reported hazards unless risk has materially increased or the operator asks for a recap.",
+		)
+	} else {
+		corePolicyLines = append(corePolicyLines,
+			"- When no meaningful hazards are visible, return an empty hazards array, set scene_safe to true, and leave voice_response empty.",
+			"- Do not repeat previously reported findings unless risk has materially increased or the operator explicitly asks for a recap.",
+		)
+	}
+
 	sections := []string{
 		"ROLE\nYou are ARGUS, a high-reliability visual safety inspection copilot. Your job is to identify visually supported hazards, compliance risks, and notable safety conditions without inventing evidence.",
-		"CORE POLICY\n- Ground every finding in visible evidence from the current scene.\n- Do not invent unseen hazards, hidden causes, or standards that cannot be reasonably inferred.\n- If evidence is ambiguous, reduce confidence and say what needs physical verification.\n- Prefer precision over recall when evidence is weak.\n- When no meaningful hazards are visible, return an empty hazards array, set scene_safe to true, and leave voice_response empty.\n- Keep text_response concise and operationally useful.\n- Default to silence. Do not use voice_response for routine narration, status chatter, repeated reassurance, or scene descriptions.\n- Use voice_response only when there is a new actionable hazard at or above the spoken threshold, when the operator explicitly asks a question, or when confirming a direct operator command.\n- If the scene appears unchanged or only low-value observations are available, keep voice_response empty.\n- voice_response must be short, single-turn, non-repetitive, and suitable for enterprise monitoring environments.",
+		"CORE POLICY\n" + strings.Join(corePolicyLines, "\n"),
 	}
 
 	modulePrompt = strings.TrimSpace(modulePrompt)
@@ -68,6 +119,19 @@ func BuildInspectionPrompt(
 	}
 	runtimeLines = append(runtimeLines,
 		"Describe hazard locations spatially (for example: left side, near exit, overhead, ground level, foreground/background).",
+	)
+	if forLive {
+		runtimeLines = append(runtimeLines,
+			"For every hazard you can spatially localize, call highlight_hazard with box_2d coordinates [ymin, xmin, ymax, xmax] (values 0-1000). Always provide box_2d when the hazard occupies a visible region — spatial precision is critical for incident tracking.",
+			"Do not re-report hazards the operator has dismissed via dismiss_finding unless conditions materially change.",
+		)
+	} else {
+		runtimeLines = append(runtimeLines,
+			"For each hazard, include a location field describing where in the frame the hazard appears.",
+		)
+	}
+	runtimeLines = append(runtimeLines,
+		"Limit reported hazards to at most 25 per observation batch to ensure response quality.",
 		"Reference the camera when relevant.",
 		"Severity calibration: low = minor housekeeping or low-immediacy issue; medium = clear safety/compliance concern needing follow-up; high = serious hazard needing prompt intervention; critical = imminent life-safety danger requiring immediate action.",
 	)
@@ -79,10 +143,16 @@ func BuildInspectionPrompt(
 	}
 	sections = append(sections, "RUNTIME CONTEXT\n"+strings.Join(runtimeLines, "\n"))
 
-	sections = append(sections,
-		"OUTPUT CONTRACT\nReturn valid JSON only. Use this schema:\n{\n  \"hazards\": [\n    {\n      \"rule_id\": \"string\",\n      \"description\": \"string\",\n      \"severity\": \"low|medium|high|critical\",\n      \"confidence\": 0.0,\n      \"location\": \"string\",\n      \"camera_id\": \"string\"\n    }\n  ],\n  \"text_response\": \"short operator summary\",\n  \"voice_response\": \"short spoken summary or empty string\",\n  \"scene_safe\": true\n}",
-		"DECISION RULES\n- Include only findings supported by visible evidence.\n- If a standard is referenced, only do so when it is reasonably applicable.\n- If the scene is partially occluded or ambiguous, mention uncertainty in text_response.\n- Rank imminent life-safety risks above routine deficiencies.\n- Do not repeat previously reported findings unless risk has materially increased or the operator explicitly asks for a recap.\n- If there are no threshold-worthy or operator-requested spoken updates, set voice_response to an empty string.\n- Do not output markdown fences or commentary outside the JSON object.",
-	)
+	if !forLive {
+		sections = append(sections,
+			"OUTPUT CONTRACT\nReturn valid JSON only. Use this schema:\n{\n  \"hazards\": [\n    {\n      \"rule_id\": \"string\",\n      \"description\": \"string\",\n      \"severity\": \"low|medium|high|critical\",\n      \"confidence\": 0.0,\n      \"location\": \"string\",\n      \"camera_id\": \"string\"\n    }\n  ],\n  \"text_response\": \"short operator summary\",\n  \"voice_response\": \"short spoken summary or empty string\",\n  \"scene_safe\": true\n}",
+			"DECISION RULES\n- Include only findings supported by visible evidence.\n- If a standard is referenced, only do so when it is reasonably applicable.\n- If the scene is partially occluded or ambiguous, mention uncertainty in text_response.\n- Rank imminent life-safety risks above routine deficiencies.\n- Do not output markdown fences or commentary outside the JSON object.",
+		)
+	} else {
+		sections = append(sections,
+			"DECISION RULES\n- Include only findings supported by visible evidence.\n- If a standard is referenced, only do so when it is reasonably applicable.\n- If the scene is partially occluded or ambiguous, mention uncertainty in your spoken response.\n- Rank imminent life-safety risks above routine deficiencies.",
+		)
+	}
 
 	return strings.Join(sections, "\n\n")
 }
@@ -145,8 +215,8 @@ func parseGenerateContentResponse(result *genai.GenerateContentResponse) (*types
 
 	var resp types.GeminiResponse
 	if err := json.Unmarshal([]byte(text), &resp); err != nil {
-		// Not valid JSON — treat as plain text
-		return &types.GeminiResponse{
+		// Intentional: fall back to plain text on invalid JSON
+		return &types.GeminiResponse{ //nolint:nilerr
 			TextResponse:  text,
 			VoiceResponse: text,
 		}, nil

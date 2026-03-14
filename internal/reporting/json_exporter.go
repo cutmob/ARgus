@@ -21,28 +21,30 @@ func NewJSONExporter() *JSONExporter {
 	if dir == "" {
 		dir = "./reports"
 	}
-	os.MkdirAll(dir, 0755)
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		slog.Warn("failed to create reports directory", "dir", dir, "error", err)
+	}
 	return &JSONExporter{outputDir: dir}
 }
 
 func (e *JSONExporter) Name() string { return "json" }
 
-func (e *JSONExporter) Export(report types.InspectionReport) error {
-	filename := fmt.Sprintf("argus_report_%s_%s.json",
+func (e *JSONExporter) Export(report types.InspectionReport) (string, error) {
+	filename := fmt.Sprintf("argus_report_%s_%d.json",
 		report.InspectionMode,
-		time.Now().Format("20060102_150405"),
+		time.Now().UnixNano(),
 	)
 	path := filepath.Join(e.outputDir, filename)
 
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshaling report: %w", err)
+		return "", fmt.Errorf("marshaling report: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("writing report file: %w", err)
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return "", fmt.Errorf("writing report file: %w", err)
 	}
 
 	slog.Info("report exported as JSON", "path", path)
-	return nil
+	return filename, nil
 }

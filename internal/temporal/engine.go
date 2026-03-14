@@ -17,7 +17,34 @@ const (
 	sprtAlarmThreshold = 2.89
 	sprtClearThreshold = -2.25
 	sprtEpsilon        = 1e-6 // prevents log(0)
-	confHistMaxSamples = 20   // rolling window size for confidence history
+
+	// confHistMaxAge is the maximum age of confidence samples retained in the
+	// rolling history. Samples older than this are pruned on each ingestion.
+	// A time-bounded window (rather than fixed sample count) ensures trend
+	// computation scales correctly across rules with different time windows.
+	// Aligned with LogicAgent (arxiv 2602.07689): ground events into
+	// discrete, time-bounded units rather than fixed sample counts.
+	confHistMaxAge = 5 * time.Minute
+
+	// confHistMaxSamples caps the absolute number of samples to prevent
+	// unbounded memory growth within the time window.
+	confHistMaxSamples = 200
+
+	// sprtDecayHalfLife controls the exponential time decay applied to the
+	// SPRT accumulator. Evidence older than this half-life contributes
+	// exponentially less, preventing ghost incidents from stale observations.
+	// Aligned with V-CORE (arxiv 2601.01804) block-causal temporal attention
+	// and TaYS (arxiv 2603.02872) streaming temporal causality.
+	sprtDecayHalfLife = 30 * time.Second
+
+	// autoEscalationLLRThreshold triggers automatic escalation when the SPRT
+	// log-likelihood ratio significantly exceeds the alarm threshold.
+	// Aligned with Chain of Event-Centric Causal Thought (arxiv 2603.09094).
+	autoEscalationLLRThreshold = 5.0
+
+	// autoEscalationDistinctRules is the minimum number of distinct temporal
+	// rules that must fire on the same session before auto-escalation triggers.
+	autoEscalationDistinctRules = 2
 )
 
 // Engine defines the public interface for the temporal incident engine.
@@ -41,6 +68,13 @@ type Engine interface {
 	GetIncidentSummary(sessionID string, from, to time.Time) (Summary, error)
 }
 
+// sprtEntry holds the per-key SPRT accumulator state including the timestamp
+// of the last observation, used for exponential time decay.
+type sprtEntry struct {
+	LLR      float64
+	LastSeen time.Time
+}
+
 // engine is the concrete implementation of Engine.
 type engine struct {
 	mu    sync.Mutex
@@ -48,14 +82,18 @@ type engine struct {
 	rules []RuleSpec
 
 	// sprtState maps a (sessionID, hazardRuleID, cameraID) key to the current
-	// cumulative log-likelihood ratio. This is the SPRT accumulator described
-	// by Wald (1947) — evidence accumulates across observations until an alarm
-	// or clear threshold is crossed.
-	sprtState map[string]float64
+	// SPRT accumulator entry. Evidence accumulates across observations until an
+	// alarm or clear threshold is crossed, with exponential time decay applied
+	// between observations (Wald 1947 + V-CORE temporal causality).
+	sprtState map[string]sprtEntry
 
-	// confHist maps the same key to a rolling window of ConfidenceSample values
-	// used to compute real trend slopes (escalating / stable / improving).
+	// confHist maps the same key to a time-bounded rolling window of
+	// ConfidenceSample values used to compute real trend slopes.
 	confHist map[string][]types.ConfidenceSample
+
+	// sessionRulesFired tracks which temporal rule IDs have fired per session,
+	// used for auto-escalation when multiple distinct rules converge.
+	sessionRulesFired map[string]map[string]bool
 }
 
 // NewEngine constructs a new temporal engine backed by the given store and rules.
@@ -64,10 +102,11 @@ func NewEngine(store Store, rules []RuleSpec) Engine {
 		store = newMemoryStore()
 	}
 	return &engine{
-		store:     store,
-		rules:     rules,
-		sprtState: make(map[string]float64),
-		confHist:  make(map[string][]types.ConfidenceSample),
+		store:             store,
+		rules:             rules,
+		sprtState:         make(map[string]sprtEntry),
+		confHist:          make(map[string][]types.ConfidenceSample),
+		sessionRulesFired: make(map[string]map[string]bool),
 	}
 }
 
@@ -103,14 +142,21 @@ func (e *engine) ingestCore(sessionID string, hazard types.Hazard, frames []type
 	// --- SPRT + confidence history update ---
 	stateKey := sprtKey(sessionID, hazard.RuleID, hazard.CameraID)
 	e.mu.Lock()
-	// Update confidence history
+
+	// Update time-bounded confidence history (prune stale samples)
 	e.confHist[stateKey] = appendConfSample(e.confHist[stateKey], types.ConfidenceSample{
 		Confidence: hazard.Confidence,
 		Timestamp:  now,
-	})
-	// Accumulate SPRT log-likelihood ratio
-	llr := e.sprtState[stateKey] + observationLLR(hazard.Confidence)
-	e.sprtState[stateKey] = llr
+	}, now)
+
+	// Apply exponential time decay to existing SPRT accumulator before adding
+	// the new observation. This ensures stale evidence from long-ago
+	// observations contributes exponentially less to the current LLR.
+	entry := e.sprtState[stateKey]
+	decayedLLR := decaySPRT(entry, now)
+	llr := decayedLLR + observationLLR(hazard.Confidence)
+	e.sprtState[stateKey] = sprtEntry{LLR: llr, LastSeen: now}
+
 	confSamples := e.confHist[stateKey]
 	e.mu.Unlock()
 
@@ -145,16 +191,16 @@ func (e *engine) ingestCore(sessionID string, hazard types.Hazard, frames []type
 		incidentID := buildIncidentID(sessionID, r.ID, hazard)
 
 		incident := Incident{
-			IncidentID:     incidentID,
-			SessionID:      sessionID,
-			PrimaryHazard:  hazard,
-			HazardType:     hazard.RuleID,
-			Severity:       hazard.Severity,
-			LifecycleState: IncidentDetected,
-			StartAt:        coalesceTime(hazard.FirstSeenAt, now),
-			EndAt:          nil,
+			IncidentID:        incidentID,
+			SessionID:         sessionID,
+			PrimaryHazard:     hazard,
+			HazardType:        hazard.RuleID,
+			Severity:          hazard.Severity,
+			LifecycleState:    IncidentDetected,
+			StartAt:           coalesceTime(hazard.FirstSeenAt, now),
+			EndAt:             nil,
 			InvolvedHazardIDs: []string{hazard.ID},
-			InvolvedCameras: uniqueNonEmpty([]string{hazard.CameraID}),
+			InvolvedCameras:   uniqueNonEmpty([]string{hazard.CameraID}),
 		}
 
 		// Apply rule effects
@@ -166,6 +212,22 @@ func (e *engine) ingestCore(sessionID string, hazard types.Hazard, frames []type
 		}
 		if r.Effect.SetSeverity != nil && severityRank(*r.Effect.SetSeverity) > severityRank(incident.Severity) {
 			incident.Severity = *r.Effect.SetSeverity
+		}
+
+		// Auto-escalation: if LLR is significantly above alarm threshold OR
+		// multiple distinct rules have fired for this session, escalate.
+		e.mu.Lock()
+		if e.sessionRulesFired[sessionID] == nil {
+			e.sessionRulesFired[sessionID] = make(map[string]bool)
+		}
+		e.sessionRulesFired[sessionID][r.ID] = true
+		distinctFired := len(e.sessionRulesFired[sessionID])
+		e.mu.Unlock()
+
+		if llr >= autoEscalationLLRThreshold || distinctFired >= autoEscalationDistinctRules {
+			if incident.LifecycleState != IncidentResolved && incident.LifecycleState != IncidentAcknowledged {
+				incident.LifecycleState = IncidentEscalated
+			}
 		}
 
 		_, _ = e.store.UpsertIncident(incident)
@@ -208,9 +270,10 @@ func (e *engine) ingestCore(sessionID string, hazard types.Hazard, frames []type
 			incident.EndAt = &endAt
 			incident.LifecycleState = IncidentResolved
 			_, _ = e.store.UpsertIncident(incident)
-			// Reset SPRT state so a new incident can form
+			// Reset SPRT state and confidence history so a new incident can form cleanly
 			e.mu.Lock()
-			e.sprtState[stateKey] = 0
+			e.sprtState[stateKey] = sprtEntry{}
+			e.confHist[stateKey] = nil
 			e.mu.Unlock()
 		}
 	}
@@ -235,7 +298,8 @@ func (e *engine) GetIncidentWithEvidence(incidentID string) (Incident, EvidenceP
 	}
 	evidence, err := e.store.GetEvidence(incidentID)
 	if err != nil {
-		return incident, emptyEvidence, nil
+		// Partial result: return incident even if evidence fetch fails
+		return incident, emptyEvidence, nil //nolint:nilerr
 	}
 	return incident, evidence, nil
 }
@@ -279,6 +343,26 @@ func observationLLR(confidence float64) float64 {
 	return math.Log(p1 / p0)
 }
 
+// decaySPRT applies exponential time decay to an existing SPRT accumulator entry.
+// The decay factor is exp(-elapsed * ln(2) / halfLife), so the LLR halves every
+// sprtDecayHalfLife interval. If the entry has no previous observation, no decay
+// is applied.
+func decaySPRT(entry sprtEntry, now time.Time) float64 {
+	if entry.LastSeen.IsZero() || entry.LLR == 0 {
+		return 0
+	}
+	elapsed := now.Sub(entry.LastSeen).Seconds()
+	if elapsed <= 0 {
+		return entry.LLR
+	}
+	halfLifeSec := sprtDecayHalfLife.Seconds()
+	if halfLifeSec <= 0 {
+		return entry.LLR
+	}
+	decayFactor := math.Exp(-elapsed * math.Ln2 / halfLifeSec)
+	return entry.LLR * decayFactor
+}
+
 // sprtKey builds the SPRT state key for a (session, hazardRule, camera) triplet.
 func sprtKey(sessionID, hazardRuleID, cameraID string) string {
 	return strings.Join([]string{sessionID, hazardRuleID, cameraID}, "|")
@@ -286,31 +370,49 @@ func sprtKey(sessionID, hazardRuleID, cameraID string) string {
 
 // --- Confidence history helpers ---
 
-// appendConfSample adds a sample to the rolling window, capping at confHistMaxSamples.
-func appendConfSample(hist []types.ConfidenceSample, sample types.ConfidenceSample) []types.ConfidenceSample {
+// appendConfSample adds a sample to the time-bounded rolling window,
+// pruning samples older than confHistMaxAge and capping at confHistMaxSamples.
+func appendConfSample(hist []types.ConfidenceSample, sample types.ConfidenceSample, now time.Time) []types.ConfidenceSample {
+	// Prune samples older than the time window
+	cutoff := now.Add(-confHistMaxAge)
+	start := 0
+	for start < len(hist) && hist[start].Timestamp.Before(cutoff) {
+		start++
+	}
+	if start > 0 {
+		hist = hist[start:]
+	}
+
 	hist = append(hist, sample)
+
+	// Hard cap to prevent unbounded growth
 	if len(hist) > confHistMaxSamples {
 		hist = hist[len(hist)-confHistMaxSamples:]
 	}
 	return hist
 }
 
-// computeRiskTrend calculates the qualitative trend from a confidence history.
-// Uses the slope between the first and last thirds of the window.
-// Aligned with Shahar's (1997) temporal abstraction: rate abstraction → trend classification.
+// computeRiskTrend calculates the qualitative trend from a confidence history
+// using an exponentially weighted moving average (EWMA) approach.
+// Early samples contribute less than recent ones, making the trend robust
+// against outliers and sensitive to recent directional changes.
 func computeRiskTrend(samples []types.ConfidenceSample) string {
 	if len(samples) < 3 {
 		return "new"
 	}
 	n := len(samples)
-	// Compare mean of last third vs first third to detect directional drift
-	third := n / 3
-	if third < 1 {
-		third = 1
+
+	// Use EWMA to compute weighted means of the first and last halves.
+	// This gives more weight to recent observations within each half,
+	// providing smoother trend detection than simple arithmetic means.
+	half := n / 2
+	if half < 1 {
+		half = 1
 	}
-	earlyMean := meanConf(samples[:third])
-	lateMean := meanConf(samples[n-third:])
-	slope := lateMean - earlyMean
+	earlyEWMA := ewmaConf(samples[:half])
+	lateEWMA := ewmaConf(samples[half:])
+	slope := lateEWMA - earlyEWMA
+
 	switch {
 	case slope > 0.08:
 		return "escalating"
@@ -321,15 +423,21 @@ func computeRiskTrend(samples []types.ConfidenceSample) string {
 	}
 }
 
-func meanConf(samples []types.ConfidenceSample) float64 {
+// ewmaConf computes the exponentially weighted moving average of confidence
+// samples. More recent samples (later in the slice) carry higher weight.
+func ewmaConf(samples []types.ConfidenceSample) float64 {
 	if len(samples) == 0 {
 		return 0
 	}
-	sum := 0.0
-	for _, s := range samples {
-		sum += s.Confidence
+	if len(samples) == 1 {
+		return samples[0].Confidence
 	}
-	return sum / float64(len(samples))
+	alpha := 2.0 / (float64(len(samples)) + 1.0)
+	ewma := samples[0].Confidence
+	for i := 1; i < len(samples); i++ {
+		ewma = alpha*samples[i].Confidence + (1-alpha)*ewma
+	}
+	return ewma
 }
 
 // --- Frame evidence helpers ---
@@ -361,7 +469,7 @@ func attachFrameSnapshots(existing []SnapshotRef, frames []types.Frame, _ string
 	return existing
 }
 
-// --- Rule evaluation helpers (unchanged logic, kept here for locality) ---
+// --- Rule evaluation helpers ---
 
 func hazardMeetsRuleThresholds(h types.Hazard, r RuleSpec) bool {
 	if strings.TrimSpace(string(r.MinSeverity)) != "" {
@@ -406,17 +514,17 @@ func hazardSatisfiesTemporalConditions(h types.Hazard, r RuleSpec, now time.Time
 	return true
 }
 
+// buildIncidentID creates a stable incident key from session, temporal rule,
+// hazard rule, and camera. Description is intentionally excluded — Gemini
+// describes the same real-world hazard differently across observations, which
+// would create duplicate incidents for a single condition.
 func buildIncidentID(sessionID, ruleID string, h types.Hazard) string {
-	desc := strings.ToLower(strings.TrimSpace(h.Description))
-	desc = strings.ReplaceAll(desc, "|", " ")
-	desc = strings.ReplaceAll(desc, "\n", " ")
 	return strings.Join([]string{
 		"inc",
 		strings.TrimSpace(sessionID),
 		strings.TrimSpace(ruleID),
 		strings.TrimSpace(h.RuleID),
 		strings.TrimSpace(h.CameraID),
-		desc,
 	}, "|")
 }
 
@@ -444,7 +552,7 @@ func coalesceTime(a, b time.Time) time.Time {
 
 func uniqueNonEmpty(values []string) []string {
 	seen := make(map[string]bool)
-	var out []string
+	out := make([]string, 0, len(values))
 	for _, v := range values {
 		v = strings.TrimSpace(v)
 		if v == "" || seen[v] {
@@ -467,11 +575,4 @@ func appendUnique(values []string, v string) []string {
 		}
 	}
 	return append(values, v)
-}
-
-func appendUniqueSlice(values []string, more []string) []string {
-	for _, v := range more {
-		values = appendUnique(values, v)
-	}
-	return values
 }

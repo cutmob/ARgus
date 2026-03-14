@@ -8,6 +8,10 @@ import (
 	"github.com/cutmob/argus/pkg/types"
 )
 
+// ---------------------------------------------------------------------------
+// Plain-text report
+// ---------------------------------------------------------------------------
+
 func buildPlainTextReport(report types.InspectionReport) string {
 	var b strings.Builder
 
@@ -41,6 +45,9 @@ func buildPlainTextReport(report types.InspectionReport) string {
 			if h.CameraID != "" {
 				b.WriteString(fmt.Sprintf("   Camera:     %s\n", h.CameraID))
 			}
+			if h.Location != "" {
+				b.WriteString(fmt.Sprintf("   Location:   %s\n", h.Location))
+			}
 			if !h.DetectedAt.IsZero() {
 				b.WriteString(fmt.Sprintf("   Detected:   %s\n", h.DetectedAt.Format("2006-01-02 15:04:05")))
 			}
@@ -62,67 +69,370 @@ func buildPlainTextReport(report types.InspectionReport) string {
 	return b.String()
 }
 
+// ---------------------------------------------------------------------------
+// HTML report (used for .html export AND as source for Word/PDF rendering)
+// ---------------------------------------------------------------------------
+
+// severityColor returns the brand color for a given severity level.
+func severityColor(s types.Severity) string {
+	switch s {
+	case types.SeverityCritical:
+		return "#dc2626"
+	case types.SeverityHigh:
+		return "#ea580c"
+	case types.SeverityMedium:
+		return "#ca8a04"
+	case types.SeverityLow:
+		return "#16a34a"
+	default:
+		return "#6b7280"
+	}
+}
+
+// severityBG returns a pale background tint for severity badges.
+func severityBG(s types.Severity) string {
+	switch s {
+	case types.SeverityCritical:
+		return "#fef2f2"
+	case types.SeverityHigh:
+		return "#fff7ed"
+	case types.SeverityMedium:
+		return "#fefce8"
+	case types.SeverityLow:
+		return "#f0fdf4"
+	default:
+		return "#f9fafb"
+	}
+}
+
+// riskBannerColor returns a banner background for the overall risk level.
+func riskBannerColor(s types.Severity) string {
+	switch s {
+	case types.SeverityCritical:
+		return "#991b1b"
+	case types.SeverityHigh:
+		return "#c2410c"
+	case types.SeverityMedium:
+		return "#a16207"
+	default:
+		return "#15803d"
+	}
+}
+
 func buildHTMLReport(report types.InspectionReport) string {
-	escape := html.EscapeString
+	esc := html.EscapeString
 	var b strings.Builder
 
-	b.WriteString("<!doctype html><html><head><meta charset=\"utf-8\">")
-	b.WriteString("<title>ARGUS Inspection Report</title>")
-	b.WriteString("<style>")
-	b.WriteString("body{font-family:Arial,sans-serif;max-width:900px;margin:32px auto;padding:0 16px;color:#1a1a1a;}")
-	b.WriteString("h1{margin:0 0 8px;font-size:28px;} h2{margin-top:24px;font-size:18px;}")
-	b.WriteString("table{border-collapse:collapse;width:100%;margin-top:8px;} th,td{border:1px solid #ddd;padding:8px;font-size:13px;text-align:left;}")
-	b.WriteString(".meta p{margin:4px 0;} .muted{color:#666;} .badge{display:inline-block;padding:2px 8px;border-radius:10px;background:#f4f4f4;}")
-	b.WriteString("ul{margin:8px 0 0 18px;} li{margin:6px 0;}")
-	b.WriteString("</style></head><body>")
+	// Count severities for the summary strip
+	counts := map[types.Severity]int{}
+	for _, h := range report.Hazards {
+		counts[h.Severity]++
+	}
 
+	b.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>ARGUS Inspection Report</title>
+<style>
+/* --- Base --- */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;max-width:960px;margin:0 auto;padding:24px 20px;color:#1a1a1a;font-size:14px;line-height:1.5;background:#fff}
+h1{font-size:26px;font-weight:700;letter-spacing:-0.3px}
+h2{font-size:17px;font-weight:600;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid #e5e7eb}
+
+/* --- Print --- */
+@page{size:A4;margin:18mm 16mm 20mm 16mm}
+@media print{
+  body{max-width:none;padding:0;font-size:12px}
+  h2{break-after:avoid}
+  .no-break{break-inside:avoid}
+  .page-break{break-before:page}
+  thead{display:table-header-group}
+  tfoot{display:table-footer-group}
+  tr{break-inside:avoid}
+  .risk-banner{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .sev-badge{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+}
+
+/* --- Header --- */
+.report-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+.report-header h1{flex:1}
+.report-logo{font-size:11px;color:#6b7280;text-align:right}
+
+/* --- Risk banner --- */
+.risk-banner{padding:12px 18px;border-radius:8px;color:#fff;margin:12px 0 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.risk-banner .score{font-size:28px;font-weight:700}
+.risk-banner .label{font-size:13px;opacity:0.9}
+
+/* --- Severity stat strip --- */
+.sev-strip{display:flex;gap:8px;margin:0 0 20px;flex-wrap:wrap}
+.sev-chip{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px}
+.sev-chip .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+
+/* --- Metadata --- */
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 24px;margin:8px 0 16px}
+.meta-grid p{margin:0;font-size:13px}
+.meta-grid strong{color:#374151}
+
+/* --- Table --- */
+table{border-collapse:collapse;width:100%;margin:8px 0 16px;font-size:13px}
+thead{background:#f9fafb}
+th{text-align:left;padding:8px 10px;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.3px;color:#4b5563;border-bottom:2px solid #e5e7eb}
+td{padding:8px 10px;border-bottom:1px solid #f3f4f6;vertical-align:top}
+tr:hover{background:#f9fafb}
+
+/* --- Severity badge (inline) --- */
+.sev-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px}
+
+/* --- Recommendations --- */
+ol.recs{margin:8px 0 0 20px}
+ol.recs li{margin:6px 0;line-height:1.5}
+
+/* --- Footer --- */
+.report-footer{margin-top:32px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;display:flex;justify-content:space-between}
+</style>
+</head><body>
+`)
+
+	// Header
+	b.WriteString(`<div class="report-header"><div>`)
 	b.WriteString("<h1>ARGUS Inspection Report</h1>")
-	b.WriteString("<div class=\"meta\">")
-	b.WriteString("<p><strong>Report ID:</strong> " + escape(report.ID) + "</p>")
-	b.WriteString("<p><strong>Session ID:</strong> " + escape(report.SessionID) + "</p>")
-	b.WriteString("<p><strong>Inspection Type:</strong> " + escape(report.InspectionMode) + "</p>")
-	b.WriteString("<p><strong>Date:</strong> " + escape(report.CreatedAt.Format("2006-01-02 15:04:05")) + "</p>")
-	b.WriteString("<p><strong>Risk:</strong> <span class=\"badge\">" + escape(string(report.RiskLevel)) + "</span> ")
-	b.WriteString(fmt.Sprintf("<span class=\"muted\">(score %.1f)</span></p>", report.RiskScore))
+	b.WriteString(`<span style="font-size:12px;color:#6b7280">` + esc(report.InspectionMode) + " inspection</span>")
+	b.WriteString(`</div><div class="report-logo">`)
+	b.WriteString("Report " + esc(report.ID) + "<br>")
+	b.WriteString(esc(report.CreatedAt.Format("2006-01-02 15:04:05")))
+	b.WriteString("</div></div>")
+
+	// Risk banner
+	bannerBG := riskBannerColor(report.RiskLevel)
+	b.WriteString(fmt.Sprintf(`<div class="risk-banner" style="background:%s">`, bannerBG))
+	b.WriteString(`<div><div class="label">Overall Risk Level</div>`)
+	b.WriteString(`<div style="font-size:20px;font-weight:700;text-transform:uppercase">` + esc(string(report.RiskLevel)) + "</div></div>")
+	b.WriteString(fmt.Sprintf(`<div class="score">%.1f</div>`, report.RiskScore))
 	b.WriteString("</div>")
 
-	b.WriteString("<h2>Summary</h2><p>" + escape(report.Summary) + "</p>")
+	// Severity stat strip
+	if len(report.Hazards) > 0 {
+		b.WriteString(`<div class="sev-strip">`)
+		for _, sev := range []types.Severity{types.SeverityCritical, types.SeverityHigh, types.SeverityMedium, types.SeverityLow} {
+			c := counts[sev]
+			if c == 0 {
+				continue
+			}
+			color := severityColor(sev)
+			bg := severityBG(sev)
+			b.WriteString(fmt.Sprintf(`<span class="sev-chip" style="background:%s;color:%s">`, bg, color))
+			b.WriteString(fmt.Sprintf(`<span class="dot" style="background:%s"></span>`, color))
+			b.WriteString(fmt.Sprintf("%d %s", c, esc(string(sev))))
+			b.WriteString("</span>")
+		}
+		b.WriteString("</div>")
+	}
 
+	// Metadata grid
+	b.WriteString(`<div class="meta-grid">`)
+	metaFields := [][2]string{
+		{"Session", report.SessionID},
+		{"Inspection Type", report.InspectionMode},
+		{"Location", report.Location},
+		{"Inspector", report.Inspector},
+		{"Date", report.CreatedAt.Format("2006-01-02 15:04:05")},
+		{"Findings", fmt.Sprintf("%d", len(report.Hazards))},
+	}
+	for _, m := range metaFields {
+		if m[1] == "" {
+			continue
+		}
+		b.WriteString("<p><strong>" + esc(m[0]) + ":</strong> " + esc(m[1]) + "</p>")
+	}
+	b.WriteString("</div>")
+
+	// Summary
+	b.WriteString("<h2>Summary</h2>")
+	b.WriteString(`<p style="margin:4px 0 0">` + esc(report.Summary) + "</p>")
+
+	// Detected Issues table
 	b.WriteString("<h2>Detected Issues</h2>")
-	b.WriteString("<table><thead><tr><th>#</th><th>Description</th><th>Severity</th><th>Confidence</th><th>Rule</th><th>Camera</th><th>Timestamp</th></tr></thead><tbody>")
+	b.WriteString(`<table><thead><tr>`)
+	b.WriteString("<th>#</th><th>Description</th><th>Severity</th><th>Confidence</th><th>Rule</th><th>Camera</th><th>Location</th><th>Timestamp</th>")
+	b.WriteString("</tr></thead><tbody>")
 	if len(report.Hazards) == 0 {
-		b.WriteString("<tr><td colspan=\"7\" class=\"muted\">No hazards detected.</td></tr>")
+		b.WriteString(`<tr><td colspan="8" style="color:#6b7280;text-align:center;padding:16px">No hazards detected.</td></tr>`)
 	} else {
 		for i, h := range report.Hazards {
-			b.WriteString("<tr>")
+			b.WriteString(`<tr class="no-break">`)
 			b.WriteString(fmt.Sprintf("<td>%d</td>", i+1))
-			b.WriteString("<td>" + escape(h.Description) + "</td>")
-			b.WriteString("<td>" + escape(string(h.Severity)) + "</td>")
+			b.WriteString("<td>" + esc(h.Description) + "</td>")
+			color := severityColor(h.Severity)
+			bg := severityBG(h.Severity)
+			b.WriteString(fmt.Sprintf(`<td><span class="sev-badge" style="background:%s;color:%s">%s</span></td>`, bg, color, esc(string(h.Severity))))
 			b.WriteString(fmt.Sprintf("<td>%.0f%%</td>", h.Confidence*100))
-			b.WriteString("<td>" + escape(h.RuleID) + "</td>")
-			b.WriteString("<td>" + escape(h.CameraID) + "</td>")
+			b.WriteString("<td>" + esc(h.RuleID) + "</td>")
+			b.WriteString("<td>" + esc(h.CameraID) + "</td>")
+			b.WriteString("<td>" + esc(h.Location) + "</td>")
 			if h.DetectedAt.IsZero() {
 				b.WriteString("<td></td>")
 			} else {
-				b.WriteString("<td>" + escape(h.DetectedAt.Format("2006-01-02 15:04:05")) + "</td>")
+				b.WriteString("<td>" + esc(h.DetectedAt.Format("2006-01-02 15:04")) + "</td>")
 			}
 			b.WriteString("</tr>")
 		}
 	}
 	b.WriteString("</tbody></table>")
 
+	// Recommendations
 	b.WriteString("<h2>Recommendations</h2>")
 	if len(report.Recommendations) == 0 {
-		b.WriteString("<p class=\"muted\">No recommendations at this time.</p>")
+		b.WriteString(`<p style="color:#6b7280">No recommendations at this time.</p>`)
 	} else {
-		b.WriteString("<ul>")
+		b.WriteString(`<ol class="recs">`)
 		for _, rec := range report.Recommendations {
-			b.WriteString("<li>" + escape(rec) + "</li>")
+			b.WriteString("<li>" + esc(rec) + "</li>")
 		}
-		b.WriteString("</ul>")
+		b.WriteString("</ol>")
 	}
 
-	b.WriteString("<p class=\"muted\" style=\"margin-top:28px;\">Generated by ARGUS AI Inspection System</p>")
+	// Footer
+	b.WriteString(`<div class="report-footer">`)
+	b.WriteString("<span>Generated by ARGUS AI Inspection System</span>")
+	b.WriteString("<span>" + esc(report.CreatedAt.Format("2006-01-02 15:04:05 MST")) + "</span>")
+	b.WriteString("</div>")
+
 	b.WriteString("</body></html>")
+	return b.String()
+}
+
+// ---------------------------------------------------------------------------
+// Word-specific HTML rendering
+// ---------------------------------------------------------------------------
+
+// buildWordHTML generates an HTML document with Microsoft Office XML namespaces
+// and mso- CSS properties that render properly in Word 2016+. This produces a
+// much higher-quality result than raw HTML saved as .doc.
+func buildWordHTML(report types.InspectionReport) string {
+	esc := html.EscapeString
+	var b strings.Builder
+
+	// Word-compatible HTML preamble with Office XML namespaces
+	b.WriteString(`<html xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8">
+<meta name="ProgId" content="Word.Document">
+<meta name="Generator" content="ARGUS AI Inspection System">
+<!--[if gte mso 9]><xml>
+<o:DocumentProperties>
+ <o:Title>ARGUS Inspection Report</o:Title>
+ <o:Subject>Safety Inspection</o:Subject>
+</o:DocumentProperties>
+<w:WordDocument>
+ <w:View>Print</w:View>
+ <w:Zoom>100</w:Zoom>
+ <w:DoNotOptimizeForBrowser/>
+</w:WordDocument>
+</xml><![endif]-->
+<style>
+/* Word page setup */
+@page Section1{size:8.5in 11.0in;margin:1.0in 1.0in 1.0in 1.0in;mso-header-margin:.5in;mso-footer-margin:.5in}
+div.Section1{page:Section1}
+
+body{font-family:'Calibri',sans-serif;font-size:11pt;color:#1a1a1a;line-height:1.4}
+h1{font-size:22pt;font-weight:bold;color:#111827;margin:0 0 6pt;mso-style-name:"Heading 1"}
+h2{font-size:14pt;font-weight:bold;color:#1f2937;margin:18pt 0 8pt;border-bottom:1.5pt solid #d1d5db;padding-bottom:4pt;mso-style-name:"Heading 2"}
+
+table{border-collapse:collapse;width:100%;mso-table-lspace:0;mso-table-rspace:0}
+th{background:#f3f4f6;mso-pattern:auto #f3f4f6;font-size:9pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3pt;color:#374151;padding:6pt 8pt;border:1pt solid #d1d5db;text-align:left}
+td{padding:5pt 8pt;border:1pt solid #e5e7eb;font-size:10pt;vertical-align:top}
+
+.meta-table td{border:none;padding:2pt 8pt 2pt 0;font-size:10pt}
+.meta-table td.lbl{font-weight:bold;color:#374151;width:120pt}
+
+.risk-box{padding:10pt 16pt;color:#ffffff;font-size:12pt;font-weight:bold;mso-shading:auto}
+.sev{font-size:9pt;font-weight:bold;padding:1pt 6pt;mso-highlight:auto}
+
+ol,ul{margin:6pt 0 6pt 24pt}
+li{margin:4pt 0;font-size:10.5pt}
+
+.footer{margin-top:24pt;border-top:1pt solid #d1d5db;padding-top:8pt;font-size:8.5pt;color:#9ca3af}
+</style>
+</head><body>
+<div class="Section1">
+`)
+
+	// Title
+	b.WriteString("<h1>ARGUS Inspection Report</h1>")
+	b.WriteString(`<p style="font-size:10pt;color:#6b7280;margin:0 0 12pt">` + esc(report.InspectionMode) + " inspection &mdash; " + esc(report.ID) + "</p>")
+
+	// Risk banner as a colored box
+	bannerBG := riskBannerColor(report.RiskLevel)
+	b.WriteString(fmt.Sprintf(`<div class="risk-box" style="background:%s">`, bannerBG))
+	b.WriteString("Overall Risk: " + esc(strings.ToUpper(string(report.RiskLevel))))
+	b.WriteString(fmt.Sprintf(" &nbsp;&nbsp; Score: %.1f", report.RiskScore))
+	b.WriteString("</div><br>")
+
+	// Metadata table (borderless)
+	b.WriteString(`<table class="meta-table">`)
+	metaRows := [][2]string{
+		{"Session ID", report.SessionID},
+		{"Inspection Type", report.InspectionMode},
+		{"Location", report.Location},
+		{"Inspector", report.Inspector},
+		{"Date", report.CreatedAt.Format("2006-01-02 15:04:05")},
+		{"Findings", fmt.Sprintf("%d", len(report.Hazards))},
+	}
+	for _, m := range metaRows {
+		if m[1] == "" {
+			continue
+		}
+		b.WriteString(`<tr><td class="lbl">` + esc(m[0]) + ":</td><td>" + esc(m[1]) + "</td></tr>")
+	}
+	b.WriteString("</table>")
+
+	// Summary
+	b.WriteString("<h2>Summary</h2>")
+	b.WriteString("<p>" + esc(report.Summary) + "</p>")
+
+	// Issues table
+	b.WriteString("<h2>Detected Issues</h2>")
+	b.WriteString("<table><thead><tr>")
+	b.WriteString("<th>#</th><th>Description</th><th>Severity</th><th>Conf.</th><th>Rule</th><th>Camera</th><th>Location</th><th>Timestamp</th>")
+	b.WriteString("</tr></thead><tbody>")
+	if len(report.Hazards) == 0 {
+		b.WriteString(`<tr><td colspan="8" style="color:#6b7280;text-align:center">No hazards detected.</td></tr>`)
+	} else {
+		for i, h := range report.Hazards {
+			b.WriteString("<tr>")
+			b.WriteString(fmt.Sprintf("<td>%d</td>", i+1))
+			b.WriteString("<td>" + esc(h.Description) + "</td>")
+			color := severityColor(h.Severity)
+			b.WriteString(fmt.Sprintf(`<td><span class="sev" style="color:%s">%s</span></td>`, color, esc(strings.ToUpper(string(h.Severity)))))
+			b.WriteString(fmt.Sprintf("<td>%.0f%%</td>", h.Confidence*100))
+			b.WriteString("<td>" + esc(h.RuleID) + "</td>")
+			b.WriteString("<td>" + esc(h.CameraID) + "</td>")
+			b.WriteString("<td>" + esc(h.Location) + "</td>")
+			if h.DetectedAt.IsZero() {
+				b.WriteString("<td></td>")
+			} else {
+				b.WriteString("<td>" + esc(h.DetectedAt.Format("2006-01-02 15:04")) + "</td>")
+			}
+			b.WriteString("</tr>")
+		}
+	}
+	b.WriteString("</tbody></table>")
+
+	// Recommendations
+	b.WriteString("<h2>Recommendations</h2>")
+	if len(report.Recommendations) == 0 {
+		b.WriteString(`<p style="color:#6b7280">No recommendations at this time.</p>`)
+	} else {
+		b.WriteString("<ol>")
+		for _, rec := range report.Recommendations {
+			b.WriteString("<li>" + esc(rec) + "</li>")
+		}
+		b.WriteString("</ol>")
+	}
+
+	// Footer
+	b.WriteString(`<p class="footer">Generated by ARGUS AI Inspection System &mdash; ` + esc(report.CreatedAt.Format("2006-01-02 15:04:05 MST")) + "</p>")
+	b.WriteString("</div></body></html>")
+
 	return b.String()
 }

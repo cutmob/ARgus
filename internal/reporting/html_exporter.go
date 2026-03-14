@@ -20,24 +20,24 @@ func NewHTMLExporter() *HTMLExporter {
 	if dir == "" {
 		dir = "./reports"
 	}
-	_ = os.MkdirAll(dir, 0755)
+	_ = os.MkdirAll(dir, 0750)
 	return &HTMLExporter{outputDir: dir}
 }
 
 func (e *HTMLExporter) Name() string { return "html" }
 
-func (e *HTMLExporter) Export(report types.InspectionReport) error {
-	filename := fmt.Sprintf("argus_report_%s_%s.html",
+func (e *HTMLExporter) Export(report types.InspectionReport) (string, error) {
+	filename := fmt.Sprintf("argus_report_%s_%d.html",
 		report.InspectionMode,
-		time.Now().Format("20060102_150405"),
+		time.Now().UnixNano(),
 	)
 	path := filepath.Join(e.outputDir, filename)
 
 	content := buildHTMLReport(report)
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		return fmt.Errorf("writing html report: %w", err)
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		return "", fmt.Errorf("writing html report: %w", err)
 	}
 
 	slog.Info("report exported as HTML", "path", path)
-	return nil
+	return filename, nil
 }

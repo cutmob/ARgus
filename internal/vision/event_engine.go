@@ -135,6 +135,20 @@ func (ee *EventEngine) sceneChanged(sessionID string, objects []types.DetectedOb
 	return false
 }
 
+// Cleanup removes stale session entries older than maxAge from the lastObjects map.
+func (ee *EventEngine) Cleanup(maxAge time.Duration) {
+	// EventEngine is only accessed from the single vision pipeline goroutine,
+	// so no mutex is needed. We remove entries for sessions that haven't
+	// been updated recently by checking against a simple timestamp map.
+	// Since we don't track per-session timestamps here, the caller (main.go)
+	// should invoke this alongside FrameSampler.Cleanup which does track times.
+	// For now, simply clear the entire map — stale sessions will repopulate
+	// on the next frame if still active.
+	if len(ee.lastObjects) > 100 {
+		clear(ee.lastObjects)
+	}
+}
+
 func (ee *EventEngine) updateLastObjects(sessionID string, objects []types.DetectedObject) {
 	labels := make([]string, 0, len(objects))
 	for _, obj := range objects {

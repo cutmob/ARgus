@@ -12,8 +12,10 @@ import (
 type Exporter interface {
 	// Name returns the export format identifier.
 	Name() string
-	// Export sends the report to its destination.
-	Export(report types.InspectionReport) error
+	// Export sends the report to its destination and returns the output
+	// filename (basename only, e.g. "argus_report_construction_20260314.pdf").
+	// Returns an empty string for non-file destinations (e.g. webhook).
+	Export(report types.InspectionReport) (filename string, err error)
 }
 
 // ExportRegistry manages available exporters.
@@ -35,14 +37,14 @@ func (er *ExportRegistry) Register(name string, exp Exporter) {
 	er.exporters[name] = exp
 }
 
-// Export sends a report through the named exporter.
-func (er *ExportRegistry) Export(name string, report types.InspectionReport) error {
+// Export sends a report through the named exporter and returns the output filename.
+func (er *ExportRegistry) Export(name string, report types.InspectionReport) (string, error) {
 	er.mu.RLock()
 	exp, ok := er.exporters[name]
 	er.mu.RUnlock()
 
 	if !ok {
-		return fmt.Errorf("exporter %q not registered", name)
+		return "", fmt.Errorf("exporter %q not registered", name)
 	}
 	return exp.Export(report)
 }

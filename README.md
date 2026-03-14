@@ -257,42 +257,31 @@ graph TB
 
 ---
 
-## Getting Started
+## Quick Start
 
-### Prerequisites
-
-- Go 1.24+
-- Node.js 18+
-- A Gemini API key — [get one at Google AI Studio](https://aistudio.google.com/app/apikey)
-
-### Run locally
+> **You need three things installed:** [Go 1.24+](https://go.dev/dl/), [Node.js 18+](https://nodejs.org/), and a [Gemini API key](https://aistudio.google.com/app/apikey).
 
 ```bash
-# 1. Clone and configure
 git clone https://github.com/cutmob/ARgus
 cd ARgus
-cp .env.example .env
-# Edit .env and set GEMINI_API_KEY
-
-# 2. Start everything with one command
-bash dev.sh
-# ✓ Pre-flight checks GEMINI_API_KEY and .env.local
-# ✓ Kills stale processes on :8080 / :3000
-# ✓ Waits for backend before starting frontend
-# ✓ Prints the URL and demo token when ready
+copy .env.example .env        # (macOS/Linux: cp .env.example .env)
+# Open .env and paste your GEMINI_API_KEY
+npm start                      # installs deps, starts backend + frontend
 ```
 
-Or via Make:
+That's it. Open **http://localhost:3000/session** and enter the demo token **`ARGUS-DEMO1`**.
+
+`npm start` works on **Windows (PowerShell / CMD)**, **macOS**, and **Linux** — no bash, no Make, no Docker required. It auto-installs frontend dependencies on first run, creates config files, waits for the backend to be ready, and prints the URL when everything is up.
+
+### Alternative: bash / Make (macOS / Linux / Git Bash)
 
 ```bash
-make dev          # backend + frontend together (calls dev.sh)
-make dev-backend  # backend only
-make dev-frontend # frontend only
+bash dev.sh                   # same thing, bash version
+# or
+make dev                      # calls dev.sh
+make dev-backend              # backend only
+make dev-frontend             # frontend only
 ```
-
-The app opens at **http://localhost:3000/session**. Enter a demo token from `DEMO_TOKENS` in `.env` (default: `ARGUS-DEMO1`).
-
-> **macOS / Linux users** — `dev.sh` works unchanged. It auto-detects the platform for port cleanup (`lsof`/`kill` on Unix, `netstat`/`taskkill` on Windows).
 
 ---
 
@@ -389,7 +378,7 @@ All real-time communication between the frontend and backend runs over a single 
 { "type": "voice_response",   "text": "...",        "audio": "<base64 PCM>" }
 { "type": "overlay",          "overlays": [...] }
 { "type": "incidents_update", "incidents": [...] }
-{ "type": "report",           "report": {...} }
+{ "type": "report", "report_id": "...", "text": "...", "download_url": "/api/v1/reports/files/<filename>" }
 { "type": "error",            "message": "..." }
 ```
 
@@ -407,6 +396,7 @@ The `incidents_update` message is pushed after every hazard ingest that changes 
 | `GET` | `/api/v1/modules` | List available inspection modules |
 | `POST` | `/api/v1/reports` | Generate a report for a session |
 | `GET` | `/api/v1/reports/:id` | Retrieve a generated report |
+| `GET` | `/api/v1/reports/files/:filename` | Download a generated report file |
 
 ---
 
@@ -420,6 +410,7 @@ The `incidents_update` message is pushed after every hazard ingest that changes 
 | `ARGUS_MODULES_DIR` | No | `./modules` | Path to inspection modules directory |
 | `GEMINI_LIVE_MODEL` | No | `gemini-2.5-flash-native-audio-preview` | Override Live API model |
 | `GEMINI_CONTENT_MODEL` | No | `gemini-2.5-flash` | Override GenerateContent model |
+| `ARGUS_REPORTS_DIR` | No | `./reports` | Directory where generated report files are written and served |
 | `NEXT_PUBLIC_WS_URL` | No | `ws://localhost:8080/ws` | WebSocket backend URL for the frontend |
 
 ---
@@ -428,7 +419,8 @@ The `incidents_update` message is pushed after every hazard ingest that changes 
 
 | Target | Description |
 |---|---|
-| `make dev` | **Start backend + frontend together** (recommended) |
+| `npm start` | **Start backend + frontend together** (recommended — works on Windows, macOS, Linux) |
+| `make dev` | Start backend + frontend together (bash) |
 | `make dev-backend` | Run backend only |
 | `make dev-frontend` | Run frontend dev server only |
 | `make run` | Run backend (alias for dev-backend) |

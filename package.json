@@ -1,0 +1,9 @@
+{
+  "name": "argus",
+  "private": true,
+  "description": "Real-time AI safety inspection platform",
+  "scripts": {
+    "setup": "cd frontend/web-client && npm install",
+    "start": "node dev.mjs"
+  }
+}

@@ -36,7 +36,18 @@ interface SessionTranscript {
   at: number;
 }
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8080/ws";
+const IS_PRODUCTION = typeof window !== "undefined" && window.location.protocol === "https:";
+
+function getWsUrl(): string {
+  const env = process.env.NEXT_PUBLIC_WS_URL;
+  if (env) return env;
+  // In production (HTTPS), auto-derive wss:// from current host
+  if (IS_PRODUCTION) {
+    return `wss://${window.location.host}/ws`;
+  }
+  return WS_URL;
+}
 const SEVERITY_RANK: Record<Severity, number> = {
   low: 1,
   medium: 2,
@@ -123,20 +134,32 @@ export function useArgusSession() {
     const existingSessionId = typeof window !== "undefined"
       ? localStorage.getItem("argus_session_id")
       : "";
-    const url = WS_URL +
-      (WS_URL.includes("?") ? "&" : "?") + "camera_id=" + cameraId +
-      (existingSessionId ? "&session_id=" + encodeURIComponent(existingSessionId) : "") +
-      (token ? "&token=" + encodeURIComponent(token) : "");
+    const baseUrl = getWsUrl();
+    const url = baseUrl +
+      (baseUrl.includes("?") ? "&" : "?") + "camera_id=" + cameraId +
+      (existingSessionId ? "&session_id=" + encodeURIComponent(existingSessionId) : "");
     const ws = new WebSocket(url);
 
     ws.onopen = () => {
+      // Send auth token as first frame instead of URL query parameter
+      if (token) {
+        ws.send(JSON.stringify({ type: "auth", token }));
+      }
       setConnected(true);
       setProcessing(false);
     };
 
     ws.onmessage = (event) => {
+      if (typeof event.data !== "string") return;
       try {
-        const msg: WebSocketMessage = JSON.parse(event.data);
+        const parsed = JSON.parse(event.data);
+        if (!parsed || typeof parsed.type !== "string") return;
+        const msg: WebSocketMessage = {
+          type: parsed.type,
+          session_id: typeof parsed.session_id === "string" ? parsed.session_id : "",
+          payload: parsed.payload ?? null,
+          timestamp: typeof parsed.timestamp === "string" ? parsed.timestamp : "",
+        };
         handleMessage(msg);
       } catch (err) {
         console.error("[ARGUS] Invalid message:", err);
@@ -145,9 +168,13 @@ export function useArgusSession() {
 
     ws.onclose = (ev) => {
       setConnected(false);
-      // Code 1006 with no open = server rejected before upgrade (e.g. 401)
-      // Don't retry in that case — show the gate again
-      if (!unauthorized && ev.code !== 1006) {
+      // 1008 = policy violation (auth failure), 1006 = abnormal before upgrade
+      if (ev.code === 1008 || ev.code === 1006) {
+        setUnauthorized(true);
+        localStorage.removeItem("argus_demo_token");
+        return;
+      }
+      if (!unauthorized) {
         reconnectTimer.current = setTimeout(connect, 3000);
       }
     };

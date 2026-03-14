@@ -4,24 +4,26 @@
 *.so
 *.dylib
 argus-server
+server.exe
 test_argus
 
 # Environment
 .env
-.env.local
+.env.*
 
-# Go
-/vendor/
+# Git
+.git
+.gitignore
 
-# Node
+# Node / Frontend (not needed in backend container)
 node_modules/
+frontend/
+landing/
 .next/
 out/
 
-# Reports
+# Reports & data (runtime only)
 reports/
-
-# Runtime data
 data/
 
 # IDE
@@ -29,21 +31,21 @@ data/
 .idea/
 *.swp
 *.swo
+.claude/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Build
+# Build artifacts
 dist/
 build/
 
-# Landing page (separate repo)
-landing/
-
-# Video assets (too large for git)
+# Large assets
 Videos/
 
-# Claude
-.claude/
+# Docs
+README.md
+LICENSE
 SUBMISSION.md
+*.md

@@ -42,7 +42,10 @@ type LiveSessionConfig struct {
 // NewLiveSession connects to the Gemini Live API and starts the receive loop.
 func NewLiveSession(ctx context.Context, client *Client, cfg LiveSessionConfig) (*LiveSession, error) {
 	connectConfig := &genai.LiveConnectConfig{
-		ResponseModalities: []genai.Modality{genai.ModalityAudio, genai.ModalityText},
+		// Native audio model only supports AUDIO output modality per the Live API
+		// docs. Text output is obtained via OutputAudioTranscription below, not
+		// as a separate modality — passing TEXT here would cause a config error.
+		ResponseModalities: []genai.Modality{genai.ModalityAudio},
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{genai.NewPartFromText(cfg.SystemPrompt)},
 		},

@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	// Latest Gemini model supporting the Live API (bidirectional streaming).
+	// GA stable model for the Live API (bidirectional streaming, native audio).
+	// Preview variant was deprecated March 19 2026 — GA model is the correct target.
 	defaultLiveModel = "gemini-live-2.5-flash-native-audio"
 
 	// Standard content model for one-shot frame analysis.

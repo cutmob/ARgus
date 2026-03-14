@@ -1,0 +1,73 @@
+run:
+  timeout: 5m
+  go: "1.24"
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose
+    - durationcheck
+    - errname
+    - errorlint
+    - copyloopvar
+    - gosec
+    - makezero
+    - nilerr
+    - prealloc
+    - predeclared
+    - revive
+    - unconvert
+    - unparam
+    - wastedassign
+
+linters-settings:
+  gosec:
+    excludes:
+      - G104  # unhandled errors on deferred Close — acceptable in many cases
+      - G114  # http.ListenAndServe — we handle via http.Server with timeouts
+    severity: medium
+
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: exported
+        disabled: true  # too noisy for hackathon
+      - name: increment-decrement
+      - name: var-naming
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment  # micro-optimization, not worth noise
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+    - text: "G101"  # false positives on variable names containing "token"
+      linters:
+        - gosec
+  max-issues-per-linter: 0
+  max-same-issues: 0

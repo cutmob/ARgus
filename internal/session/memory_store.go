@@ -76,5 +76,5 @@ func (ms *memoryStore) save(profiles map[string]*EnvironmentProfile) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(ms.filePath, data, 0o644)
+	return os.WriteFile(ms.filePath, data, 0o600)
 }

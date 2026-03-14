@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -188,6 +189,8 @@ func main() {
 	mux.HandleFunc("/api/v1/sessions/", sessionMgr.HandleGetSession)
 	mux.HandleFunc("/api/v1/modules", moduleLoader.HandleListModules)
 	mux.HandleFunc("/api/v1/reports", reportBuilder.HandleCreateReport)
+	// Serve generated report files for download — validated to prevent directory traversal
+	mux.HandleFunc("/api/v1/reports/files/", safeReportFileHandler(cfg.ReportsDir))
 	mux.HandleFunc("/api/v1/reports/", reportBuilder.HandleGetReport)
 	mux.HandleFunc("/api/v1/health", handleHealth)
 
@@ -224,6 +227,35 @@ func main() {
 	slog.Info("ARGUS server stopped")
 }
 
+func safeReportFileHandler(reportsDir string) http.HandlerFunc {
+	absDir, err := filepath.Abs(reportsDir)
+	if err != nil {
+		slog.Error("failed to resolve reports directory", "dir", reportsDir, "error", err)
+		absDir = reportsDir
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		name := filepath.Base(r.URL.Path)
+		if name == "." || name == "/" || name == ".." {
+			http.NotFound(w, r)
+			return
+		}
+		fullPath := filepath.Join(absDir, name)
+		// Use filepath.Rel to verify the resolved path is inside reportsDir.
+		// This avoids the fragile string-prefix comparison that could match
+		// directories like /app/reports_backup against /app/reports.
+		rel, err := filepath.Rel(absDir, fullPath)
+		if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, fullPath)
+	}
+}
+
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -233,10 +265,24 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
+	allowedOrigin := os.Getenv("CORS_ALLOWED_ORIGIN")
+	if allowedOrigin == "" {
+		allowedOrigin = "*"
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Security headers
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()")
+		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -249,6 +295,7 @@ type Config struct {
 	Port       string
 	ModulesDir string
 	MemoryFile string
+	ReportsDir string
 	GeminiKey  string
 	DemoTokens map[string]bool
 	Vision     VisionConfig
@@ -271,6 +318,10 @@ func loadConfig() Config {
 	if memoryFile == "" {
 		memoryFile = "./data/environment_memory.json"
 	}
+	reportsDir := os.Getenv("ARGUS_REPORTS_DIR")
+	if reportsDir == "" {
+		reportsDir = "./reports"
+	}
 	// DEMO_TOKENS is a comma-separated list of valid access codes, e.g. "ARGUS-A1,ARGUS-B2"
 	demoTokens := map[string]bool{}
 	if raw := os.Getenv("DEMO_TOKENS"); raw != "" {
@@ -285,6 +336,7 @@ func loadConfig() Config {
 		Port:       port,
 		ModulesDir: modulesDir,
 		MemoryFile: memoryFile,
+		ReportsDir: reportsDir,
 		GeminiKey:  os.Getenv("GEMINI_API_KEY"),
 		DemoTokens: demoTokens,
 		Vision: VisionConfig{

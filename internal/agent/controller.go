@@ -53,6 +53,12 @@ type Controller struct {
 	// resumeHandles stores the last GoAway resumption handle per session so
 	// we can re-establish Gemini Live sessions with temporal state continuity.
 	resumeHandles  map[string]string
+	// lastInspectCall tracks the last inspect_frame call time per session
+	// to enforce a minimum debounce interval between calls.
+	lastInspectCall map[string]time.Time
+	// dismissedHazards tracks operator-dismissed hazard descriptions per session
+	// so they are not re-reported unless conditions materially change.
+	dismissedHazards map[string]map[string]string
 }
 
 func NewController(cfg ControllerConfig) *Controller {
@@ -68,8 +74,10 @@ func NewController(cfg ControllerConfig) *Controller {
 		intentParser: NewIntentParser(),
 		responseMgr:  NewResponseManager(),
 		onResponse:   cfg.OnResponse,
-		liveSessions:  make(map[string]*geminiPkg.LiveSession),
-		resumeHandles: make(map[string]string),
+		liveSessions:     make(map[string]*geminiPkg.LiveSession),
+		resumeHandles:    make(map[string]string),
+		lastInspectCall:  make(map[string]time.Time),
+		dismissedHazards: make(map[string]map[string]string),
 	}
 }
 
@@ -190,7 +198,7 @@ func (c *Controller) startInspection(sessionID string, intent types.AgentIntent)
 		"Rules loaded: " + itoa(len(mod.Rules)),
 		c.rules.BuildPromptContext(sessionID),
 	}, "\n")
-	systemPrompt := geminiPkg.BuildInspectionPrompt(
+	systemPrompt := geminiPkg.BuildLiveInspectionPrompt(
 		mod.SystemPrompt,
 		mode,
 		cameraID,
@@ -280,24 +288,10 @@ func (c *Controller) stopInspection(sessionID string) *AgentResponse {
 	)
 }
 
-// resolveModeAlias normalises voice-command mode names to module names.
-// "kitchen" → "restaurant" is the canonical example where the spoken alias
-// differs from the module key used in the loader.
+// resolveModeAlias normalises voice-command mode names to canonical module names.
+// Delegates to the single source of truth in the inspection package.
 func resolveModeAlias(mode string) string {
-	aliases := map[string]string{
-		"kitchen":       "restaurant",
-		"lift":          "elevator",
-		"building site": "construction",
-		"storage":       "warehouse",
-		"factory":       "factory",
-		"manufacturing": "factory",
-		"plane":         "aircraft",
-		"oil rig":       "oil_rig",
-	}
-	if resolved, ok := aliases[strings.ToLower(strings.TrimSpace(mode))]; ok {
-		return resolved
-	}
-	return mode
+	return inspection.ResolveModeAlias(mode)
 }
 
 func (c *Controller) switchMode(sessionID string, mode string) *AgentResponse {
@@ -353,15 +347,18 @@ func (c *Controller) generateReport(sessionID string, intent types.AgentIntent) 
 		CreatedAt:      time.Now(),
 	}
 
-	if err := c.reports.Build(report, format); err != nil {
+	filename, err := c.reports.Build(report, format)
+	if err != nil {
 		return c.responseMgr.Error("Failed to generate report: " + err.Error())
 	}
 
-	return c.responseMgr.Voice(
-		"Report generated with " + itoa(len(report.Hazards)) +
-			" findings. Risk level: " + string(report.RiskLevel) +
-			". Would you like me to export it?",
-	)
+	summary := "Report generated with " + itoa(len(report.Hazards)) +
+		" findings. Risk level: " + string(report.RiskLevel) + "."
+	downloadURL := ""
+	if filename != "" {
+		downloadURL = "/api/v1/reports/files/" + filename
+	}
+	return c.responseMgr.ReportReady(report.ID, summary, downloadURL)
 }
 
 func (c *Controller) queryHazards(sessionID string) *AgentResponse {
@@ -727,8 +724,8 @@ func (c *Controller) buildEnvironmentFamiliarity(cameraID string) string {
 	}
 	if len(profile.FamiliarHazards) > 0 {
 		limit := len(profile.FamiliarHazards)
-		if limit > 3 {
-			limit = 3
+		if limit > 5 {
+			limit = 5
 		}
 		hazardParts := make([]string, 0, limit)
 		for i := 0; i < limit; i++ {
@@ -773,7 +770,7 @@ func (c *Controller) handleGeminiGoAway(sessionID, handle string) {
 			c.rules.BuildPromptContext(sessionID),
 			c.buildTemporalResumeContext(sessionID),
 		}, "\n")
-		systemPrompt := geminiPkg.BuildInspectionPrompt(
+		systemPrompt := geminiPkg.BuildLiveInspectionPrompt(
 			mod.SystemPrompt, sess.InspectionMode, sess.CameraID,
 			alertThreshold, runtimeContext,
 			c.buildEnvironmentFamiliarity(sess.CameraID),
@@ -860,7 +857,7 @@ func (c *Controller) handleGeminiAudio(sessionID string, data []byte) {
 func (c *Controller) handleGeminiToolCall(sessionID string, calls []*genai.FunctionCall) {
 	slog.Info("gemini tool call", "session_id", sessionID, "count", len(calls))
 
-	var responses []*genai.FunctionResponse
+	responses := make([]*genai.FunctionResponse, 0, len(calls))
 
 	for _, call := range calls {
 		result := c.executeToolCall(sessionID, *call)
@@ -897,15 +894,9 @@ func (c *Controller) handleGeminiTranscript(sessionID, speaker, text string) {
 		})
 	}
 
-	if speaker == "user" && text != "" {
-		intent := c.intentParser.Parse(text)
-		if intent.Type != types.IntentConversation {
-			resp := c.HandleIntent(sessionID, intent)
-			if c.onResponse != nil {
-				c.onResponse(sessionID, resp)
-			}
-		}
-	}
+	// Do NOT run intent parsing on Live session transcripts — Gemini already
+	// handles commands natively via function calls. Running the intent parser
+	// here would duplicate tool-call actions (e.g. generating two reports).
 }
 
 // --- Tool execution ---
@@ -926,6 +917,8 @@ func (c *Controller) executeToolCall(sessionID string, call genai.FunctionCall) 
 		return c.toolGetStatus(sessionID)
 	case "get_incidents":
 		return c.toolGetIncidents(sessionID)
+	case "dismiss_finding":
+		return c.toolDismissFinding(sessionID, call.Args)
 	default:
 		return map[string]any{"error": "unknown tool: " + call.Name}
 	}
@@ -972,7 +965,19 @@ func (c *Controller) toolGetIncidents(sessionID string) map[string]any {
 	}
 }
 
+const inspectFrameDebounce = 2 * time.Second
+
 func (c *Controller) toolInspectFrame(sessionID string, args map[string]any) map[string]any {
+	// Debounce: reject calls that arrive faster than the minimum interval
+	// to prevent model over-calling from flooding the temporal engine.
+	c.mu.Lock()
+	if last, ok := c.lastInspectCall[sessionID]; ok && time.Since(last) < inspectFrameDebounce {
+		c.mu.Unlock()
+		return map[string]any{"status": "debounced", "message": "inspect_frame called too frequently, wait briefly"}
+	}
+	c.lastInspectCall[sessionID] = time.Now()
+	c.mu.Unlock()
+
 	hazardsRaw, ok := args["hazards"]
 	if !ok {
 		return map[string]any{"status": "no hazards provided"}
@@ -988,6 +993,7 @@ func (c *Controller) toolInspectFrame(sessionID string, args map[string]any) map
 		Severity    string  `json:"severity"`
 		Confidence  float64 `json:"confidence"`
 		RuleID      string  `json:"rule_id"`
+		Location    string  `json:"location"`
 	}
 	if err := json.Unmarshal(hazardsJSON, &hazardInputs); err != nil {
 		return map[string]any{"error": "failed to parse hazards"}
@@ -998,16 +1004,34 @@ func (c *Controller) toolInspectFrame(sessionID string, args map[string]any) map
 	if sess != nil {
 		camID = sess.CameraID
 	}
+	// Grab recent frames for temporal engine evidence attachment
+	var recentFrames []types.Frame
+	if sess != nil && sess.FrameBuffer != nil {
+		recentFrames = sess.FrameBuffer.Recent(5)
+	}
+
 	for _, h := range hazardInputs {
-		c.sessions.AddHazard(sessionID, types.Hazard{
+		hazard := types.Hazard{
 			ID:          sessionID + "_" + itoa(int(time.Now().UnixMilli())),
 			RuleID:      h.RuleID,
 			Description: h.Description,
 			Severity:    types.Severity(h.Severity),
 			Confidence:  h.Confidence,
+			Location:    h.Location,
 			CameraID:    camID,
 			DetectedAt:  time.Now(),
-		})
+		}
+		c.sessions.AddHazard(sessionID, hazard)
+
+		// Feed into temporal engine for SPRT accumulation and incident tracking
+		if c.temporal != nil {
+			c.temporal.IngestHazardWithFrames(sessionID, hazard, recentFrames)
+		}
+	}
+
+	// Push incident update so frontend timeline stays current
+	if len(hazardInputs) > 0 && c.temporal != nil {
+		c.pushIncidentsUpdate(sessionID)
 	}
 
 	return map[string]any{"status": "logged", "count": len(hazardInputs)}
@@ -1016,6 +1040,7 @@ func (c *Controller) toolInspectFrame(sessionID string, args map[string]any) map
 func (c *Controller) toolHighlightHazard(sessionID string, args map[string]any) map[string]any {
 	label, _ := args["label"].(string)
 	severity, _ := args["severity"].(string)
+	location, _ := args["location"].(string)
 
 	color := "#ffcc00"
 	switch types.Severity(severity) {
@@ -1027,9 +1052,14 @@ func (c *Controller) toolHighlightHazard(sessionID string, args map[string]any) 
 		color = "#ffaa00"
 	}
 
+	displayLabel := label
+	if location != "" {
+		displayLabel = label + " — " + location
+	}
+
 	overlay := types.Overlay{
 		Type:     "hazard_box",
-		Label:    label,
+		Label:    displayLabel,
 		Severity: types.Severity(severity),
 		Color:    color,
 	}
@@ -1083,7 +1113,15 @@ func (c *Controller) toolGenerateReport(sessionID string, args map[string]any) m
 	}
 	intent := types.AgentIntent{Type: types.IntentGenerateReport, Format: format}
 	resp := c.generateReport(sessionID, intent)
-	return map[string]any{"status": "generated", "message": resp.Text}
+	// Push report_ready to the client immediately so the frontend can show the download link.
+	if c.onResponse != nil {
+		c.onResponse(sessionID, resp)
+	}
+	result := map[string]any{"status": "generated", "message": resp.Text}
+	if resp.DownloadURL != "" {
+		result["download_url"] = resp.DownloadURL
+	}
+	return result
 }
 
 func (c *Controller) toolLogIssue(sessionID string, args map[string]any) map[string]any {
@@ -1133,4 +1171,27 @@ func (c *Controller) toolGetStatus(sessionID string) map[string]any {
 	}
 
 	return result
+}
+
+func (c *Controller) toolDismissFinding(sessionID string, args map[string]any) map[string]any {
+	desc, _ := args["hazard_description"].(string)
+	reason, _ := args["reason"].(string)
+	if strings.TrimSpace(desc) == "" {
+		return map[string]any{"error": "hazard_description is required"}
+	}
+
+	c.mu.Lock()
+	if c.dismissedHazards[sessionID] == nil {
+		c.dismissedHazards[sessionID] = make(map[string]string)
+	}
+	c.dismissedHazards[sessionID][strings.ToLower(strings.TrimSpace(desc))] = reason
+	c.mu.Unlock()
+
+	slog.Info("hazard dismissed by operator",
+		"session_id", sessionID,
+		"description", desc,
+		"reason", reason,
+	)
+
+	return map[string]any{"status": "dismissed", "description": desc, "reason": reason}
 }

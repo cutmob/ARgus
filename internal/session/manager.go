@@ -21,6 +21,10 @@ type Manager struct {
 	temporalEngine temporal.Engine
 }
 
+// closedSessionTTL is how long closed sessions are retained before being
+// garbage-collected from memory.
+const closedSessionTTL = 30 * time.Minute
+
 func NewManager(memoryFilePath string) *Manager {
 	mgr := &Manager{
 		sessions: make(map[string]*Session),
@@ -34,7 +38,26 @@ func NewManager(memoryFilePath string) *Manager {
 			slog.Warn("failed to load environment memory", "error", err, "path", memoryFilePath)
 		}
 	}
+	// Start background cleanup of closed sessions to prevent unbounded memory growth
+	go mgr.cleanupLoop()
 	return mgr
+}
+
+// cleanupLoop periodically removes closed sessions older than closedSessionTTL.
+func (m *Manager) cleanupLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		m.mu.Lock()
+		now := time.Now()
+		for id, s := range m.sessions {
+			if s.State == StateClosed && !s.ClosedAt.IsZero() && now.Sub(s.ClosedAt) > closedSessionTTL {
+				delete(m.sessions, id)
+				slog.Debug("cleaned up stale session", "id", id)
+			}
+		}
+		m.mu.Unlock()
+	}
 }
 
 // SetTemporalEngine wires a temporal incident engine into the session manager.
@@ -327,10 +350,12 @@ func (m *Manager) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 	}
 	sessions := m.List()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"sessions": sessions,
 		"count":    len(sessions),
-	})
+	}); err != nil {
+		slog.Error("failed to encode sessions response", "error", err)
+	}
 }
 
 func (m *Manager) HandleGetSession(w http.ResponseWriter, r *http.Request) {
@@ -346,5 +371,7 @@ func (m *Manager) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s)
+	if err := json.NewEncoder(w).Encode(s); err != nil {
+		slog.Error("failed to encode session response", "error", err)
+	}
 }

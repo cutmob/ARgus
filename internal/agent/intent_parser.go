@@ -3,36 +3,19 @@ package agent
 import (
 	"strings"
 
+	"github.com/cutmob/argus/internal/inspection"
 	"github.com/cutmob/argus/pkg/types"
 )
 
 // IntentParser extracts structured intents from user speech/text.
-// In production, Gemini handles intent extraction via function calling.
-// This provides a fallback for common patterns.
-type IntentParser struct {
-	modeAliases map[string]string
-}
+// In production, Gemini Live handles intent extraction natively via function
+// calling — this parser is an intentionally simple fallback for the non-Live
+// path (e.g. HandleRawText). Exact substring matching is acceptable here
+// because voice transcription errors are handled by Gemini, not this parser.
+type IntentParser struct{}
 
 func NewIntentParser() *IntentParser {
-	return &IntentParser{
-		modeAliases: map[string]string{
-			"elevator":      "elevator",
-			"lift":          "elevator",
-			"construction":  "construction",
-			"building site": "construction",
-			"warehouse":     "warehouse",
-			"storage":       "warehouse",
-			"facility":      "facility",
-			"restaurant":    "restaurant",
-			"kitchen":       "restaurant",
-			"factory":       "factory",
-			"manufacturing": "factory",
-			"aircraft":      "aircraft",
-			"plane":         "aircraft",
-			"oil rig":       "oil_rig",
-			"general":       "general",
-		},
-	}
+	return &IntentParser{}
 }
 
 // Parse converts raw text into a structured AgentIntent.
@@ -91,7 +74,8 @@ func (ip *IntentParser) matchesAny(text string, patterns ...string) bool {
 }
 
 func (ip *IntentParser) extractMode(text string) string {
-	for alias, mode := range ip.modeAliases {
+	// Use the shared mode alias map from the inspection package
+	for alias, mode := range inspection.ModeAliases {
 		if strings.Contains(text, alias) {
 			return mode
 		}

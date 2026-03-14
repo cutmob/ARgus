@@ -18,10 +18,10 @@ func NewWebhookExporter(client *integrations.WebhookClient) *WebhookExporter {
 
 func (e *WebhookExporter) Name() string { return "webhook" }
 
-func (e *WebhookExporter) Export(report types.InspectionReport) error {
+func (e *WebhookExporter) Export(report types.InspectionReport) (string, error) {
 	slog.Info("exporting report via webhook",
 		"report_id", report.ID,
 		"mode", report.InspectionMode,
 	)
-	return e.client.Send(report)
+	return "", e.client.Send(report)
 }

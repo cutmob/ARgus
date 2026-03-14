@@ -19,7 +19,7 @@ type WebhookClient struct {
 
 func NewWebhookClient() *WebhookClient {
 	return &WebhookClient{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 		defaultURL: os.Getenv("ARGUS_WEBHOOK_URL"),
 	}
 }

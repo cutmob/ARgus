@@ -7,10 +7,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 
 	"github.com/cutmob/argus/pkg/types"
 )
+
+var validModuleName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 
 // ModuleLoader discovers, loads, and manages pluggable inspection modules.
 // Each module is a directory containing rules.json, prompts.yaml, and metadata.json.
@@ -76,10 +79,12 @@ func (ml *ModuleLoader) HandleListModules(w http.ResponseWriter, r *http.Request
 	ml.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"modules": modules,
 		"count":   len(modules),
-	})
+	}); err != nil {
+		slog.Error("failed to encode modules response", "error", err)
+	}
 }
 
 func (ml *ModuleLoader) discoverModules() {
@@ -103,6 +108,9 @@ func (ml *ModuleLoader) discoverModules() {
 }
 
 func (ml *ModuleLoader) loadFromDisk(name string) (*types.InspectionModule, error) {
+	if !validModuleName.MatchString(name) {
+		return nil, fmt.Errorf("invalid module name: %s", name)
+	}
 	moduleDir := filepath.Join(ml.modulesDir, name)
 
 	// Load rules
