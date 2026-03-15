@@ -23,7 +23,6 @@ WORKDIR /app
 
 COPY --from=builder /app/argus-server .
 COPY --from=builder /app/modules ./modules
-COPY --from=builder /app/configs ./configs
 
 RUN mkdir -p /app/reports && chown -R argus:argus /app
 
@@ -31,7 +30,6 @@ USER argus
 
 EXPOSE 8080
 
-ENV PORT=8080
 ENV ARGUS_MODULES_DIR=/app/modules
 ENV ARGUS_REPORTS_DIR=/app/reports
 
