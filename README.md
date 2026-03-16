@@ -192,8 +192,8 @@ graph TB
         CV[CCTV Session]
         AR[AR / Headset Session]
         SM & CV & AR --> HS[useArgusSession]
-        HS --- WW[useWakeWord\nsay 'argus' to activate]
-        HS --- AU[AudioWorklet\n20 ms PCM · VAD gate]
+        HS --- WW[useWakeWord + useVoiceCommands\nsay 'argus' to activate · voice control]
+        HS --- AU[useLiveAudioInput · AudioWorklet\n20 ms PCM · VAD gate]
         HS --- IT[IncidentTimeline\nSPRT LLR · lifecycle · trend]
     end
 
@@ -201,12 +201,13 @@ graph TB
 
     subgraph CR ["Google Cloud Run — Go 1.24"]
         direction TB
-        WS[WebSocket Server]
+        WS[WebSocket Server\nDemoGate token auth]
+        WS --> SM2[Session Manager\nstate · cleanup · env profiles]
         WS --> AC[Agent Controller]
-        AC --> VP[Vision Pipeline\nFrame Sampler · FrameBuffer]
-        AC --> RE[Rule Engine\nModule Loader · 20 modules]
+        AC --> VP[Vision Pipeline\nDetector · EventEngine · FrameSampler]
+        AC --> RE[Rule Engine\nHazardDetector · Module Loader · 20 modules]
         AC --> IP[Intent Parser\nmode alias resolver]
-        AC --> RB[Report Builder\nPDF · JSON · CSV · webhook]
+        AC --> RB[Report Builder\nPDF · Word · HTML · JSON · CSV · TXT · webhook]
         AC --> TE[Temporal Engine\nSPRT · confidence history\nincident lifecycle]
         TE -->|incidents_update| WS
     end
@@ -214,7 +215,7 @@ graph TB
     AC -->|"google.golang.org/genai SDK\nbidirectional stream"| GL
 
     subgraph GM ["Gemini Live API"]
-        GL["gemini-live-2.5-flash-native-audio\n─────────────────────────────\ninbound  → audio stream · JPEG frames\noutbound → audio · text · tool calls\nGoAway  → temporal context re-injected"]
+        GL["gemini-2.5-flash-native-audio\n─────────────────────────────\ninbound  → audio stream · JPEG frames\noutbound → audio · text · tool calls\nGoAway  → temporal context re-injected"]
     end
 
     subgraph GCP ["Google Cloud Platform"]
